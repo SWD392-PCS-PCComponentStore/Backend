@@ -4,7 +4,7 @@ const morgan = require("morgan");
 
 const rootRouter = require("./routes/rootRouter");
 const errorHandler = require("./middlewares/errorHandler");
-// const { swaggerUi, swaggerSpec } = require("./utils/swagger");
+const { swaggerUi, swaggerSpec } = require("./utils/swagger");
 
 const app = express();
 
@@ -19,7 +19,7 @@ app.use(morgan("dev"));
 /* ======================
    Swagger Docs
 ====================== */
-// app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 /* ======================
    Routes
