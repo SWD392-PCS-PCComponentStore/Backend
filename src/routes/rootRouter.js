@@ -2,8 +2,11 @@ const express = require("express");
 const router = express.Router();
 
 const authRoute = require("./authRoute");
+const categoryRoute = require("./categoryRoute");
+const productRoute = require("./productRoute");
+const specificationRoute = require("./specificationRoute");
+const uploadRoute = require("./uploadRoute");
 // const userRoute = require("./userRoute");
-// const productRoute = require("./productRoute");
 
 /* ======================
    Test Route
@@ -18,7 +21,10 @@ router.get("/test", (req, res) => {
 Child Routes
 ====================== */
 router.use("/auth", authRoute);
+router.use("/categories", categoryRoute);
+router.use("/products", productRoute);
+router.use("/specifications", specificationRoute);
+router.use("/upload", uploadRoute);
 // router.use("/users", userRoute);
-// router.use("/products", productRoute);
 
 module.exports = router;
