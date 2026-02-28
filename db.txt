@@ -1,0 +1,57 @@
+CREATE DATABASE PCComponentStore;
+GO
+USE PCComponentStore;
+GO
+CREATE TABLE users (
+    user_id BIGINT PRIMARY KEY IDENTITY(1,1),
+
+    full_name NVARCHAR(150) NOT NULL,
+    email NVARCHAR(150) NOT NULL UNIQUE,
+    password_hash NVARCHAR(255) NOT NULL,
+
+    phone NVARCHAR(20),
+    avatar_url NVARCHAR(255),
+
+    role NVARCHAR(50) DEFAULT 'customer',
+    status NVARCHAR(50) DEFAULT 'active',
+
+    last_login_at DATETIME NULL,
+    created_at DATETIME DEFAULT GETDATE(),
+    updated_at DATETIME DEFAULT GETDATE()
+);
+
+-- 1️⃣ Categories
+CREATE TABLE categories (
+    category_id INT PRIMARY KEY IDENTITY(1,1),
+    name NVARCHAR(150) NOT NULL UNIQUE
+);
+
+-- 2️⃣ Products (đã thêm image_url)
+CREATE TABLE products (
+    product_id BIGINT PRIMARY KEY IDENTITY(1,1),
+    name NVARCHAR(255) NOT NULL,
+    category_id INT NOT NULL,
+    brand NVARCHAR(150),
+    price DECIMAL(18,2) NOT NULL,
+    stock INT DEFAULT 0,
+    image_url NVARCHAR(500), -- 👈 thêm dòng này
+    created_at DATETIME DEFAULT GETDATE(),
+
+    CONSTRAINT FK_products_categories
+        FOREIGN KEY (category_id)
+        REFERENCES categories(category_id)
+        ON DELETE CASCADE
+);
+
+-- 3️⃣ Product Specifications
+CREATE TABLE product_specifications (
+    spec_id BIGINT PRIMARY KEY IDENTITY(1,1),
+    product_id BIGINT NOT NULL,
+    spec_name NVARCHAR(150) NOT NULL,
+    spec_value NVARCHAR(255) NOT NULL,
+
+    CONSTRAINT FK_specs_products
+        FOREIGN KEY (product_id)
+        REFERENCES products(product_id)
+        ON DELETE CASCADE
+);
