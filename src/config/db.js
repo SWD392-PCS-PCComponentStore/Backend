@@ -5,13 +5,16 @@ const dbServer = process.env.DB_SERVER; // e.g. localhost or DESKTOP-XXXX
 const dbInstance = process.env.DB_INSTANCE; // e.g. SQLEXPRESS or QUOCHUY1910
 const dbPort = process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : undefined;
 
+// Auto-detect Azure SQL Database (requires encryption)
+const isAzure = dbServer && dbServer.includes('.database.windows.net');
+
 const config = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     server: dbServer,
     database: process.env.DB_NAME,
     options: {
-        encrypt: false,
+        encrypt: isAzure ? true : false,
         trustServerCertificate: true
     }
 };
