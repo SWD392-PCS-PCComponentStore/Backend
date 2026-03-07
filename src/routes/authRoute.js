@@ -1,6 +1,6 @@
 const express = require('express');
 const AuthController = require('../controllers/authController');
-const { validateGmail, validateGmailAndPhone } = require('../middlewares/validationMiddleware');
+const { validateEmail, validatePhone } = require('../middlewares/validationMiddleware');
 
 const router = express.Router();
 
@@ -26,16 +26,16 @@ const router = express.Router();
  *           schema:
  *             type: object
  *             required:
- *               - fullname
+ *               - name
  *               - email
  *               - password
  *             properties:
- *               fullname:
+ *               name:
  *                 type: string
  *                 example: Nguyen Van A
  *               email:
  *                 type: string
- *                 example: nguyenvana@gmail.com
+ *                 example: an.nguyen@example.com
  *               password:
  *                 type: string
  *                 example: 123456
@@ -48,7 +48,7 @@ const router = express.Router();
  *       400:
  *         description: Email already exists
  */
-router.post('/register', validateGmailAndPhone, AuthController.register);
+router.post('/register', validateEmail, validatePhone, AuthController.register);
 /**
  * @swagger
  * /api/auth/login:
@@ -68,7 +68,7 @@ router.post('/register', validateGmailAndPhone, AuthController.register);
  *             properties:
  *               email:
  *                 type: string
- *                 example: nguyenvana@gmail.com
+ *                 example: an.nguyen@example.com
  *               password:
  *                 type: string
  *                 example: 123456
@@ -78,6 +78,6 @@ router.post('/register', validateGmailAndPhone, AuthController.register);
  *       401:
  *         description: Invalid email or password
  */
-router.post('/login', validateGmail, AuthController.login);
+router.post('/login', validateEmail, AuthController.login);
 
 module.exports = router;

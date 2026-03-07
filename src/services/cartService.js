@@ -19,7 +19,7 @@ exports.addToCart = async (userId, productData) => {
     }
 
     // Check stock
-    if (product.recordset[0].stock < productData.quantity) {
+    if (product.recordset[0].stock_quantity < productData.quantity) {
         throw new Error('Insufficient stock');
     }
 
@@ -29,7 +29,7 @@ exports.addToCart = async (userId, productData) => {
     if (existingItem.recordset[0]) {
         // Item exists, update quantity
         const newQuantity = existingItem.recordset[0].quantity + (productData.quantity || 1);
-        if (product.recordset[0].stock < newQuantity) {
+        if (product.recordset[0].stock_quantity < newQuantity) {
             throw new Error('Insufficient stock for requested quantity');
         }
         await Cart.updateQuantity(existingItem.recordset[0].cart_id, newQuantity);
@@ -53,7 +53,7 @@ exports.updateQuantity = async (cartId, quantity) => {
     }
 
     // Verify stock
-    if (cartItem.stock < quantity) {
+    if (cartItem.stock_quantity < quantity) {
         throw new Error('Insufficient stock');
     }
 

@@ -20,7 +20,7 @@ class UserService {
         const hashedPassword = await bcrypt.hash(userData.password, parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10);
 
         const newUser = await User.create({
-            fullname: userData.fullname,
+            name: userData.name || userData.fullname,
             email: userData.email,
             password_hash: hashedPassword,
             phone: userData.phone
@@ -32,6 +32,11 @@ class UserService {
         const user = await User.findbyEmail(email);
         if (!user) {
             throw new Error('Invalid email or password');
+        }
+
+        // Check if password_hash exists
+        if (!user.password_hash) {
+            throw new Error('User account is invalid. Please contact administrator or re-register.');
         }
 
         const isMatch = await bcrypt.compare(password, user.password_hash);

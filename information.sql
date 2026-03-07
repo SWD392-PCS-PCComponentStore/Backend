@@ -71,18 +71,20 @@ BEGIN TRY
 		(N'SSD8',    8.00,  DATEADD(DAY,-1, SYSUTCDATETIME()), DATEADD(DAY,  90, SYSUTCDATETIME()));
 
 	-- 5) Users (10)
-	INSERT INTO dbo.Users (name, email, phone, address)
+	-- Password cho tất cả users: 123456
+	-- Hash: $2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
+	INSERT INTO dbo.Users (name, email, password_hash, phone, address)
 	VALUES
-		(N'Nguyễn An',       N'an.nguyen@example.com',       N'0900000001', N'TP. Hồ Chí Minh'),
-		(N'Trần Bình',       N'binh.tran@example.com',       N'0900000002', N'Hà Nội'),
-		(N'Lê Chí',          N'chi.le@example.com',          N'0900000003', N'Đà Nẵng'),
-		(N'Phạm Dũng',       N'dung.pham@example.com',       N'0900000004', N'Cần Thơ'),
-		(N'Hoàng Emi',       N'emi.hoang@example.com',       N'0900000005', N'Huế'),
-		(N'Vũ Giang',        N'giang.vu@example.com',        N'0900000006', N'TP. Hồ Chí Minh'),
-		(N'Đỗ Hiếu',         N'hieu.do@example.com',         N'0900000007', N'Hà Nội'),
-		(N'Bùi Khánh',       N'khanh.bui@example.com',       N'0900000008', N'Đà Nẵng'),
-		(N'Phan Linh',       N'linh.phan@example.com',       N'0900000009', N'TP. Hồ Chí Minh'),
-		(N'Ngô Minh',        N'minh.ngo@example.com',        N'0900000010', N'Hải Phòng');
+		(N'Nguyễn An',       N'an.nguyen@example.com',       N'$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', N'0900000001', N'TP. Hồ Chí Minh'),
+		(N'Trần Bình',       N'binh.tran@example.com',       N'$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', N'0900000002', N'Hà Nội'),
+		(N'Lê Chí',          N'chi.le@example.com',          N'$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', N'0900000003', N'Đà Nẵng'),
+		(N'Phạm Dũng',       N'dung.pham@example.com',       N'$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', N'0900000004', N'Cần Thơ'),
+		(N'Hoàng Emi',       N'emi.hoang@example.com',       N'$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', N'0900000005', N'Huế'),
+		(N'Vũ Giang',        N'giang.vu@example.com',        N'$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', N'0900000006', N'TP. Hồ Chí Minh'),
+		(N'Đỗ Hiếu',         N'hieu.do@example.com',         N'$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', N'0900000007', N'Hà Nội'),
+		(N'Bùi Khánh',       N'khanh.bui@example.com',       N'$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', N'0900000008', N'Đà Nẵng'),
+		(N'Phan Linh',       N'linh.phan@example.com',       N'$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', N'0900000009', N'TP. Hồ Chí Minh'),
+		(N'Ngô Minh',        N'minh.ngo@example.com',        N'$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', N'0900000010', N'Hải Phòng');
 
 	-- 6) Admins (5) - map to first 5 users
 	INSERT INTO dbo.Admins (role, permissions, user_id)

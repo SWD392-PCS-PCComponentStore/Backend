@@ -19,24 +19,24 @@ const router = express.Router();
  *       properties:
  *         cart_id:
  *           type: integer
- *           format: int64
+ *           format: int32
  *           description: Cart item ID
  *           example: 1
  *         user_id:
  *           type: integer
- *           format: int64
+ *           format: int32
  *           description: User ID
  *           example: 1
  *         product_id:
  *           type: integer
- *           format: int64
+ *           format: int32
  *           description: Product ID
  *           example: 1
  *         quantity:
  *           type: integer
  *           description: Quantity of product
  *           example: 2
- *         added_at:
+ *         date_added:
  *           type: string
  *           format: date-time
  *           description: When item was added to cart
@@ -49,7 +49,7 @@ const router = express.Router();
  *           format: decimal
  *           description: Product price
  *           example: 1599.99
- *         stock:
+ *         stock_quantity:
  *           type: integer
  *           description: Available stock
  *           example: 50

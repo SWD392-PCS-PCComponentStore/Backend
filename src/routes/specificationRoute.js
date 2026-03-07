@@ -18,24 +18,30 @@ const specificationController = require("../controllers/specificationController"
  *       properties:
  *         spec_id:
  *           type: integer
- *           format: int64
+ *           format: int32
  *           description: Specification ID
  *           example: 1
  *         product_id:
  *           type: integer
- *           format: int64
+ *           format: int32
  *           description: Product ID
  *           example: 1
- *         spec_name:
+ *         attribute_name:
  *           type: string
- *           maxLength: 150
+ *           maxLength: 255
  *           description: Specification name
  *           example: GPU Memory
- *         spec_value:
+ *         attribute_value:
  *           type: string
  *           maxLength: 255
  *           description: Specification value
  *           example: 24GB GDDR6X
+ *         unit:
+ *           type: string
+ *           maxLength: 50
+ *           nullable: true
+ *           description: Optional unit
+ *           example: GB
  */
 
 /**
@@ -53,21 +59,26 @@ const specificationController = require("../controllers/specificationController"
  *             type: object
  *             required:
  *               - product_id
- *               - spec_name
- *               - spec_value
+ *               - attribute_name
+ *               - attribute_value
  *             properties:
  *               product_id:
  *                 type: integer
- *                 format: int64
+ *                 format: int32
  *                 example: 1
- *               spec_name:
+ *               attribute_name:
  *                 type: string
- *                 maxLength: 150
+ *                 maxLength: 255
  *                 example: Core Clock
- *               spec_value:
+ *               attribute_value:
  *                 type: string
  *                 maxLength: 255
  *                 example: 2.52 GHz
+ *               unit:
+ *                 type: string
+ *                 maxLength: 50
+ *                 nullable: true
+ *                 example: GHz
  *     responses:
  *       201:
  *         description: Specification created successfully
@@ -104,7 +115,7 @@ router.post("/", specificationController.createSpecification);
  *         required: true
  *         schema:
  *           type: integer
- *           format: int64
+ *           format: int32
  *         description: Product ID
  *         example: 1
  *     responses:
@@ -128,5 +139,75 @@ router.post("/", specificationController.createSpecification);
  *         description: Internal server error
  */
 router.get("/product/:productId", specificationController.getSpecificationsByProductId);
+
+/**
+ * @swagger
+ * /api/specifications/{specId}:
+ *   put:
+ *     summary: Update a specification by ID
+ *     tags: [Specifications]
+ *     security: []
+ *     parameters:
+ *       - in: path
+ *         name: specId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           format: int32
+ *         description: Specification ID
+ *         example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - attribute_name
+ *               - attribute_value
+ *             properties:
+ *               attribute_name:
+ *                 type: string
+ *                 maxLength: 255
+ *                 example: Core Clock
+ *               attribute_value:
+ *                 type: string
+ *                 maxLength: 255
+ *                 example: 2.60
+ *               unit:
+ *                 type: string
+ *                 maxLength: 50
+ *                 nullable: true
+ *                 example: GHz
+ *     responses:
+ *       200:
+ *         description: Specification updated successfully
+ *       404:
+ *         description: Specification not found
+ *       500:
+ *         description: Internal server error
+ *   delete:
+ *     summary: Delete a specification by ID
+ *     tags: [Specifications]
+ *     security: []
+ *     parameters:
+ *       - in: path
+ *         name: specId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           format: int32
+ *         description: Specification ID
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Specification deleted successfully
+ *       404:
+ *         description: Specification not found
+ *       500:
+ *         description: Internal server error
+ */
+router.put("/:specId", specificationController.updateSpecification);
+router.delete("/:specId", specificationController.deleteSpecification);
 
 module.exports = router;

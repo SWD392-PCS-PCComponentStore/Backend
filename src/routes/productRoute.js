@@ -20,7 +20,7 @@ const router = express.Router();
  *       properties:
  *         product_id:
  *           type: integer
- *           format: int64
+ *           format: int32
  *           description: Product ID
  *           example: 1
  *         name:
@@ -28,33 +28,35 @@ const router = express.Router();
  *           maxLength: 255
  *           description: Product name
  *           example: NVIDIA GeForce RTX 4090
+ *         description:
+ *           type: string
+ *           nullable: true
+ *           description: Product description
+ *           example: High-end GPU for 4K gaming
+ *         supplier_id:
+ *           type: integer
+ *           format: int32
+ *           description: Supplier ID
+ *           example: 1
  *         category_id:
  *           type: integer
+ *           format: int32
  *           description: Category ID
  *           example: 1
- *         brand:
- *           type: string
- *           maxLength: 150
- *           description: Product brand
- *           example: NVIDIA
  *         price:
  *           type: number
  *           format: decimal
  *           description: Product price
  *           example: 1599.99
- *         stock:
+ *         stock_quantity:
  *           type: integer
  *           description: Stock quantity
  *           example: 50
  *         image_url:
  *           type: string
- *           maxLength: 500
+ *           maxLength: 1000
  *           description: Product image URL
  *           example: https://example.com/images/rtx4090.jpg
- *         created_at:
- *           type: string
- *           format: date-time
- *           description: Creation timestamp
  *         category_name:
  *           type: string
  *           description: Category name (from JOIN)
@@ -138,6 +140,7 @@ router.get("/:id", productController.getProductById);
  *             type: object
  *             required:
  *               - name
+ *               - supplier_id
  *               - category_id
  *               - price
  *             properties:
@@ -145,18 +148,20 @@ router.get("/:id", productController.getProductById);
  *                 type: string
  *                 maxLength: 255
  *                 example: AMD Ryzen 9 7950X
+ *               description:
+ *                 type: string
+ *                 example: 16 cores CPU
+ *               supplier_id:
+ *                 type: integer
+ *                 example: 1
  *               category_id:
  *                 type: integer
  *                 example: 2
- *               brand:
- *                 type: string
- *                 maxLength: 150
- *                 example: AMD
  *               price:
  *                 type: number
  *                 format: decimal
  *                 example: 699.99
- *               stock:
+ *               stock_quantity:
  *                 type: integer
  *                 example: 100
  *               image:
@@ -212,18 +217,20 @@ router.post("/", upload.single("image"), uploadToCloudinary, productController.c
  *                 type: string
  *                 maxLength: 255
  *                 example: NVIDIA GeForce RTX 4090 Ti
+ *               description:
+ *                 type: string
+ *                 example: Updated product description
+ *               supplier_id:
+ *                 type: integer
+ *                 example: 1
  *               category_id:
  *                 type: integer
  *                 example: 1
- *               brand:
- *                 type: string
- *                 maxLength: 150
- *                 example: NVIDIA
  *               price:
  *                 type: number
  *                 format: decimal
  *                 example: 1799.99
- *               stock:
+ *               stock_quantity:
  *                 type: integer
  *                 example: 75
  *               image:

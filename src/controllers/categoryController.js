@@ -21,6 +21,13 @@ exports.getAllCategories = async (req, res) => {
 exports.getCategoryById = async (req, res) => {
     try {
         const category = await categoryService.getCategoryById(req.params.id);
+        if (!category) {
+            return res.status(404).json({
+                success: false,
+                error: 'Category not found'
+            });
+        }
+
         res.json({
             success: true,
             data: category
@@ -53,6 +60,14 @@ exports.createCategory = async (req, res) => {
 
 exports.updateCategory = async (req, res) => {
     try {
+        const existingCategory = await categoryService.getCategoryById(req.params.id);
+        if (!existingCategory) {
+            return res.status(404).json({
+                success: false,
+                error: 'Category not found'
+            });
+        }
+
         const updatedCategory = await categoryService.updateCategory(req.params.id, req.body);
         res.json({
             success: true,
@@ -70,10 +85,18 @@ exports.updateCategory = async (req, res) => {
 
 exports.deleteCategory = async (req, res) => {
     try {
+        const existingCategory = await categoryService.getCategoryById(req.params.id);
+        if (!existingCategory) {
+            return res.status(404).json({
+                success: false,
+                error: 'Category not found'
+            });
+        }
+
         const result = await categoryService.deleteCategory(req.params.id);
         res.json({ 
             success: true,
-            message: 'Category deleted successfully' 
+            message: result.message
         });
     } catch (error) {
         console.error('❌ Delete category error:', error);
