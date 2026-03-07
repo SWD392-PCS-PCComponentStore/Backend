@@ -3,12 +3,7 @@ require("dotenv").config();
 const swaggerJsdoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
 
-const PORT = process.env.PORT || 5000;
-
-const SERVER_URL =
-  process.env.NODE_ENV === "production"
-    ? process.env.SERVER_URL
-    : `http://localhost:${PORT}`;
+const SERVER_URL = process.env.SERVER_URL || "/";
 
 const options = {
   definition: {
@@ -35,7 +30,6 @@ const options = {
     security: [{ BearerAuth: [] }],
   },
 
-  // Swagger sẽ đọc comment từ các file này
   apis: ["./src/routes/*.js", "./src/controllers/*.js"],
 };
 
