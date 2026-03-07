@@ -5,7 +5,7 @@ class User {
         const conn = await pool;
         const result = await conn.request()
             .input('email', sql.NVarChar, email)
-            .query('SELECT * FROM users WHERE email = @email');
+            .query('SELECT * FROM dbo.Users WHERE email = @email');
 
         return result.recordset[0];
     }
@@ -14,11 +14,12 @@ class User {
         const conn = await pool;
 
         const result = await conn.request()
-            .input('fullname', sql.NVarChar, userData.fullname)
-            .input('email', sql.NVarChar, userData.email)
-            .input('password_hash', sql.NVarChar, userData.password_hash)
-            .input("phone", sql.NVarChar, userData.phone)
-            .query('INSERT INTO users (full_name, email, password_hash, phone) OUTPUT INSERTED.* VALUES (@fullname, @email, @password_hash, @phone)');
+            .input('name', sql.NVarChar(255), userData.name || userData.fullname)
+            .input('email', sql.NVarChar(255), userData.email)
+            .input('password_hash', sql.NVarChar(255), userData.password_hash)
+            .input('phone', sql.NVarChar(50), userData.phone || null)
+            .input('address', sql.NVarChar(500), userData.address || null)
+            .query('INSERT INTO dbo.Users (name, email, password_hash, phone, address) OUTPUT INSERTED.* VALUES (@name, @email, @password_hash, @phone, @address)');
 
             return result.recordset[0];
     }

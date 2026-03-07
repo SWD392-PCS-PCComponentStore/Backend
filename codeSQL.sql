@@ -16,12 +16,13 @@ GO
 
 IF OBJECT_ID(N'dbo.Users', N'U') IS NULL
 CREATE TABLE dbo.Users (
-  user_id     INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Users PRIMARY KEY,
-  name        NVARCHAR(255) NOT NULL,
-  email       NVARCHAR(255) NOT NULL,
-  phone       NVARCHAR(50) NULL,
-  address     NVARCHAR(500) NULL,
-  created_at  DATETIME2(0) NOT NULL CONSTRAINT DF_Users_created_at DEFAULT SYSUTCDATETIME(),
+  user_id       INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Users PRIMARY KEY,
+  name          NVARCHAR(255) NOT NULL,
+  email         NVARCHAR(255) NOT NULL,
+  password_hash NVARCHAR(255) NOT NULL,
+  phone         NVARCHAR(50) NULL,
+  address       NVARCHAR(500) NULL,
+  created_at    DATETIME2(0) NOT NULL CONSTRAINT DF_Users_created_at DEFAULT SYSUTCDATETIME(),
   CONSTRAINT UQ_Users_email UNIQUE (email)
 );
 GO

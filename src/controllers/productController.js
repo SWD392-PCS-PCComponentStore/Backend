@@ -21,6 +21,13 @@ exports.getAllProducts = async (req, res) => {
 exports.getProductById = async (req, res) => {
     try {
         const product = await productService.getProductById(req.params.id);
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                error: 'Product not found'
+            });
+        }
+
         res.json({
             success: true,
             data: product
@@ -36,6 +43,14 @@ exports.getProductById = async (req, res) => {
 
 exports.createProduct = async (req, res) => {
     try {
+        const { name, supplier_id, category_id, price } = req.body;
+        if (!name || !supplier_id || !category_id || price === undefined || price === null) {
+            return res.status(400).json({
+                success: false,
+                error: 'name, supplier_id, category_id and price are required'
+            });
+        }
+
         const newProduct = await productService.createProduct(req.body);
         res.status(201).json({
             success: true,
@@ -44,6 +59,13 @@ exports.createProduct = async (req, res) => {
         });
     } catch (error) {
         console.error('❌ Create product error:', error);
+        if (error.message && error.message.toLowerCase().includes('foreign key')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid supplier_id or category_id'
+            });
+        }
+
         res.status(500).json({ 
             success: false,
             error: 'Internal server error' 
@@ -53,14 +75,26 @@ exports.createProduct = async (req, res) => {
 
 exports.updateProduct = async (req, res) => {
     try {
-        const product = await productService.getProductById(req.params.id);
-        if (!product) {
+        const existingProduct = await productService.getProductById(req.params.id);
+        if (!existingProduct) {
             return res.status(404).json({ 
                 success: false,
                 error: 'Product not found' 
             });
         }
-        const updatedProduct = await productService.updateProduct(req.params.id, req.body);
+
+        // Keep current values if client sends partial update.
+        const payload = {
+            name: req.body.name ?? existingProduct.name,
+            description: req.body.description ?? existingProduct.description,
+            price: req.body.price ?? existingProduct.price,
+            stock_quantity: req.body.stock_quantity ?? existingProduct.stock_quantity,
+            image_url: req.body.image_url ?? existingProduct.image_url,
+            supplier_id: req.body.supplier_id ?? existingProduct.supplier_id,
+            category_id: req.body.category_id ?? existingProduct.category_id
+        };
+
+        const updatedProduct = await productService.updateProduct(req.params.id, payload);
         res.json({
             success: true,
             message: 'Product updated successfully',
@@ -68,6 +102,13 @@ exports.updateProduct = async (req, res) => {
         });
     } catch (error) {
         console.error('❌ Update product error:', error);
+        if (error.message && error.message.toLowerCase().includes('foreign key')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid supplier_id or category_id'
+            });
+        }
+
         res.status(500).json({ 
             success: false,
             error: 'Internal server error' 

@@ -32,6 +32,11 @@ const router = express.Router();
  *           type: string
  *           description: Category name
  *           example: Graphics Cards
+ *         description:
+ *           type: string
+ *           nullable: true
+ *           description: Category description
+ *           example: Product category for GPUs and accessories
  */
 
 /**
@@ -115,6 +120,9 @@ router.get('/:id', categoryController.getCategoryById);
  *               name:
  *                 type: string
  *                 example: Processors
+ *               description:
+ *                 type: string
+ *                 example: CPU and related products
  *     responses:
  *       201:
  *         description: Category created successfully
@@ -163,6 +171,9 @@ router.post('/', categoryController.createCategory);
  *               name:
  *                 type: string
  *                 example: Gaming Graphics Cards
+ *               description:
+ *                 type: string
+ *                 example: Updated category description
  *     responses:
  *       200:
  *         description: Category updated successfully
