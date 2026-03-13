@@ -17,45 +17,84 @@ const router = express.Router();
  *     CartItem:
  *       type: object
  *       properties:
+ *         cart_item_id:
+ *           type: integer
+ *           description: ID của item trong giỏ hàng
+ *           example: 1
  *         cart_id:
  *           type: integer
- *           format: int32
- *           description: Cart item ID
- *           example: 1
+ *           description: ID giỏ hàng của user
+ *           example: 3
  *         user_id:
  *           type: integer
- *           format: int32
- *           description: User ID
+ *           description: ID người dùng
  *           example: 1
  *         product_id:
  *           type: integer
- *           format: int32
- *           description: Product ID
- *           example: 1
+ *           nullable: true
+ *           description: ID sản phẩm (null nếu là build)
+ *           example: 5
+ *         user_build_id:
+ *           type: integer
+ *           nullable: true
+ *           description: ID build PC (null nếu là sản phẩm đơn lẻ)
+ *           example: null
  *         quantity:
  *           type: integer
- *           description: Quantity of product
+ *           description: Số lượng trong giỏ
  *           example: 2
- *         date_added:
+ *         created_at:
  *           type: string
  *           format: date-time
- *           description: When item was added to cart
+ *           description: Ngày tạo giỏ hàng
  *         product_name:
  *           type: string
- *           description: Product name
+ *           nullable: true
+ *           description: Tên sản phẩm (có khi product_id không null)
  *           example: NVIDIA GeForce RTX 4090
- *         price:
+ *         product_price:
  *           type: number
- *           format: decimal
- *           description: Product price
+ *           nullable: true
+ *           description: Đơn giá sản phẩm
  *           example: 1599.99
  *         stock_quantity:
  *           type: integer
- *           description: Available stock
+ *           nullable: true
+ *           description: Tồn kho hiện tại của sản phẩm
  *           example: 50
  *         image_url:
  *           type: string
- *           description: Product image URL
+ *           nullable: true
+ *           description: URL ảnh sản phẩm
+ *         build_name:
+ *           type: string
+ *           nullable: true
+ *           description: Tên build PC (có khi user_build_id không null)
+ *           example: My Gaming PC
+ *         build_price:
+ *           type: number
+ *           nullable: true
+ *           description: Tổng giá build PC
+ *           example: 2500.00
+ *         subtotal:
+ *           type: number
+ *           description: "Đơn giá × số lượng của item này"
+ *           example: 3199.98
+ *     CartSummary:
+ *       type: object
+ *       properties:
+ *         itemCount:
+ *           type: integer
+ *           description: Số loại item trong giỏ
+ *           example: 3
+ *         totalQuantity:
+ *           type: integer
+ *           description: Tổng số lượng tất cả item
+ *           example: 5
+ *         totalPrice:
+ *           type: number
+ *           description: Tổng tiền toàn bộ giỏ hàng
+ *           example: 4799.97
  */
 
 /**
@@ -74,6 +113,15 @@ const router = express.Router();
  *     responses:
  *       200:
  *         description: Cart total retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/CartSummary'
  */
 router.get("/:userId/total", cartController.getCartTotal);
 
@@ -109,10 +157,16 @@ router.get("/:userId/total", cartController.getCartTotal);
  *                         $ref: '#/components/schemas/CartItem'
  *                     itemCount:
  *                       type: integer
+ *                       description: Số loại item trong giỏ
+ *                       example: 3
  *                     totalQuantity:
  *                       type: integer
+ *                       description: Tổng số lượng
+ *                       example: 5
  *                     totalPrice:
  *                       type: number
+ *                       description: Tổng tiền toàn bộ giỏ hàng
+ *                       example: 4799.97
  */
 router.get("/:userId", cartController.getCart);
 
@@ -135,20 +189,78 @@ router.get("/:userId", cartController.getCart);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - product_id
  *             properties:
  *               product_id:
  *                 type: integer
+ *                 nullable: true
+ *                 description: "ID sản phẩm cần thêm (chọn 1 trong 2: product_id hoặc user_build_id)"
  *                 example: 1
+ *               user_build_id:
+ *                 type: integer
+ *                 nullable: true
+ *                 description: "ID build PC cần thêm (chọn 1 trong 2: product_id hoặc user_build_id)"
+ *                 example: null
  *               quantity:
  *                 type: integer
+ *                 description: Số lượng thêm vào (mặc định 1). Nếu sản phẩm đã có trong giỏ thì cộng dồn.
  *                 example: 2
  *     responses:
  *       201:
- *         description: Product added to cart successfully
+ *         description: Thêm vào giỏ thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     item:
+ *                       type: object
+ *                       description: Item vừa thêm/cập nhật (kèm subtotal)
+ *                       properties:
+ *                         cart_item_id:
+ *                           type: integer
+ *                           example: 1
+ *                         product_id:
+ *                           type: integer
+ *                           nullable: true
+ *                           example: 1
+ *                         product_name:
+ *                           type: string
+ *                           example: NVIDIA GeForce RTX 4090
+ *                         product_price:
+ *                           type: number
+ *                           example: 1599.99
+ *                         quantity:
+ *                           type: integer
+ *                           example: 2
+ *                         subtotal:
+ *                           type: number
+ *                           description: Đơn giá × số lượng (ví dụ 1599.99 × 2 = 3199.98)
+ *                           example: 3199.98
+ *                     cartSummary:
+ *                       type: object
+ *                       description: Tổng hợp toàn bộ giỏ hàng sau khi thêm
+ *                       properties:
+ *                         itemCount:
+ *                           type: integer
+ *                           description: Số loại sản phẩm trong giỏ
+ *                           example: 3
+ *                         totalQuantity:
+ *                           type: integer
+ *                           description: Tổng số lượng tất cả item
+ *                           example: 5
+ *                         totalPrice:
+ *                           type: number
+ *                           description: Tổng tiền toàn bộ giỏ hàng
+ *                           example: 4799.97
  *       400:
- *         description: Bad request or insufficient stock
+ *         description: Thiếu ID, không đủ tồn kho, hoặc truyền cả 2 ID cùng lúc
  *       404:
  *         description: Product not found
  */
@@ -181,11 +293,22 @@ router.post("/:userId/add", cartController.addToCart);
  *                 example: 5
  *     responses:
  *       200:
- *         description: Quantity updated successfully
+ *         description: Cập nhật số lượng thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/CartItem'
  *       400:
- *         description: Invalid quantity or insufficient stock
+ *         description: Số lượng không hợp lệ hoặc không đủ tồn kho
  *       404:
- *         description: Cart item not found
+ *         description: Không tìm thấy item trong giỏ
  */
 router.put("/:cartId/update", cartController.updateQuantity);
 
@@ -204,9 +327,19 @@ router.put("/:cartId/update", cartController.updateQuantity);
  *         description: Cart Item ID
  *     responses:
  *       200:
- *         description: Item removed successfully
+ *         description: Xóa item khỏi giỏ thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                   example: Item removed from cart successfully
  *       404:
- *         description: Cart item not found
+ *         description: Không tìm thấy item trong giỏ
  */
 router.delete("/:cartId/remove", cartController.removeFromCart);
 
@@ -225,7 +358,17 @@ router.delete("/:cartId/remove", cartController.removeFromCart);
  *         description: User ID
  *     responses:
  *       200:
- *         description: Cart cleared successfully
+ *         description: Xóa toàn bộ giỏ hàng thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                   example: Cart cleared successfully
  */
 router.delete("/:userId/clear", cartController.clearCart);
 

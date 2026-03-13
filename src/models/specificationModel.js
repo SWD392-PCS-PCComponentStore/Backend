@@ -5,39 +5,36 @@ class Specification {
         const conn = await pool;
         return await conn.request()
         .input('product_id', sql.Int, specData.product_id)
-        .input('attribute_name', sql.NVarChar(255), specData.attribute_name)
-        .input('attribute_value', sql.NVarChar(255), specData.attribute_value)
-        .input('unit', sql.NVarChar(50), specData.unit || null)
-        .query(`INSERT INTO dbo.Product_Specs (product_id, attribute_name, attribute_value, unit) 
+    .input('spec_name', sql.NVarChar(255), specData.spec_name)
+    .input('spec_value', sql.NVarChar(255), specData.spec_value)
+    .query(`INSERT INTO dbo.PRODUCT_SPEC (product_id, spec_name, spec_value) 
                 OUTPUT INSERTED.* 
-                VALUES (@product_id, @attribute_name, @attribute_value, @unit)`);
+        VALUES (@product_id, @spec_name, @spec_value)`);
     }
 
     static async getByProductId(productId) {
         const conn = await pool;
         return await conn.request()
         .input('product_id', sql.Int, productId)
-        .query('SELECT * FROM dbo.Product_Specs WHERE product_id = @product_id');
+        .query('SELECT * FROM dbo.PRODUCT_SPEC WHERE product_id = @product_id');
     }
 
     static async getById(specId) {
         const conn = await pool;
         return await conn.request()
         .input('spec_id', sql.Int, specId)
-        .query('SELECT * FROM dbo.Product_Specs WHERE spec_id = @spec_id');
+        .query('SELECT * FROM dbo.PRODUCT_SPEC WHERE spec_id = @spec_id');
     }
 
     static async update(specId, specData) {
         const conn = await pool;
         return await conn.request()
         .input('spec_id', sql.Int, specId)
-        .input('attribute_name', sql.NVarChar(255), specData.attribute_name)
-        .input('attribute_value', sql.NVarChar(255), specData.attribute_value)
-        .input('unit', sql.NVarChar(50), specData.unit || null)
-        .query(`UPDATE dbo.Product_Specs
-                SET attribute_name = @attribute_name,
-                    attribute_value = @attribute_value,
-                    unit = @unit
+        .input('spec_name', sql.NVarChar(255), specData.spec_name)
+        .input('spec_value', sql.NVarChar(255), specData.spec_value)
+        .query(`UPDATE dbo.PRODUCT_SPEC
+                SET spec_name = @spec_name,
+                    spec_value = @spec_value
                 WHERE spec_id = @spec_id`);
     }
 
@@ -45,7 +42,7 @@ class Specification {
         const conn = await pool;
         return await conn.request()
         .input('spec_id', sql.Int, specId)
-        .query('DELETE FROM dbo.Product_Specs WHERE spec_id = @spec_id');
+        .query('DELETE FROM dbo.PRODUCT_SPEC WHERE spec_id = @spec_id');
     }
 
 }

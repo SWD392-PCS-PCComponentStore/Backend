@@ -43,11 +43,11 @@ exports.getProductById = async (req, res) => {
 
 exports.createProduct = async (req, res) => {
     try {
-        const { name, supplier_id, category_id, price } = req.body;
-        if (!name || !supplier_id || !category_id || price === undefined || price === null) {
+        const { name, category_id, price } = req.body;
+        if (!name || !category_id || price === undefined || price === null) {
             return res.status(400).json({
                 success: false,
-                error: 'name, supplier_id, category_id and price are required'
+                error: 'name, category_id and price are required'
             });
         }
 
@@ -62,7 +62,7 @@ exports.createProduct = async (req, res) => {
         if (error.message && error.message.toLowerCase().includes('foreign key')) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid supplier_id or category_id'
+                error: 'Invalid category_id'
             });
         }
 
@@ -90,7 +90,8 @@ exports.updateProduct = async (req, res) => {
             price: req.body.price ?? existingProduct.price,
             stock_quantity: req.body.stock_quantity ?? existingProduct.stock_quantity,
             image_url: req.body.image_url ?? existingProduct.image_url,
-            supplier_id: req.body.supplier_id ?? existingProduct.supplier_id,
+            status: req.body.status ?? existingProduct.status,
+            brand: req.body.brand ?? existingProduct.brand,
             category_id: req.body.category_id ?? existingProduct.category_id
         };
 
@@ -105,7 +106,7 @@ exports.updateProduct = async (req, res) => {
         if (error.message && error.message.toLowerCase().includes('foreign key')) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid supplier_id or category_id'
+                error: 'Invalid category_id'
             });
         }
 
