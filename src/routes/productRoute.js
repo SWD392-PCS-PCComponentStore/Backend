@@ -33,11 +33,6 @@ const router = express.Router();
  *           nullable: true
  *           description: Product description
  *           example: High-end GPU for 4K gaming
- *         supplier_id:
- *           type: integer
- *           format: int32
- *           description: Supplier ID
- *           example: 1
  *         category_id:
  *           type: integer
  *           format: int32
@@ -54,9 +49,21 @@ const router = express.Router();
  *           example: 50
  *         image_url:
  *           type: string
- *           maxLength: 1000
+ *           maxLength: 500
  *           description: Product image URL
  *           example: https://example.com/images/rtx4090.jpg
+ *         status:
+ *           type: string
+ *           description: Product status
+ *           example: Available
+ *         brand:
+ *           type: string
+ *           description: Product brand
+ *           example: ASUS
+ *         created_at:
+ *           type: string
+ *           format: date-time
+ *           description: Product creation timestamp
  *         category_name:
  *           type: string
  *           description: Category name (from JOIN)
@@ -140,7 +147,6 @@ router.get("/:id", productController.getProductById);
  *             type: object
  *             required:
  *               - name
- *               - supplier_id
  *               - category_id
  *               - price
  *             properties:
@@ -151,9 +157,6 @@ router.get("/:id", productController.getProductById);
  *               description:
  *                 type: string
  *                 example: 16 cores CPU
- *               supplier_id:
- *                 type: integer
- *                 example: 1
  *               category_id:
  *                 type: integer
  *                 example: 2
@@ -164,6 +167,12 @@ router.get("/:id", productController.getProductById);
  *               stock_quantity:
  *                 type: integer
  *                 example: 100
+ *               status:
+ *                 type: string
+ *                 example: Available
+ *               brand:
+ *                 type: string
+ *                 example: MSI
  *               image:
  *                 type: string
  *                 format: binary
@@ -220,9 +229,6 @@ router.post("/", upload.single("image"), uploadToCloudinary, productController.c
  *               description:
  *                 type: string
  *                 example: Updated product description
- *               supplier_id:
- *                 type: integer
- *                 example: 1
  *               category_id:
  *                 type: integer
  *                 example: 1
@@ -233,6 +239,12 @@ router.post("/", upload.single("image"), uploadToCloudinary, productController.c
  *               stock_quantity:
  *                 type: integer
  *                 example: 75
+ *               status:
+ *                 type: string
+ *                 example: Available
+ *               brand:
+ *                 type: string
+ *                 example: Gigabyte
  *               image:
  *                 type: string
  *                 format: binary

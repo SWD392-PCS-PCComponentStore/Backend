@@ -42,6 +42,12 @@ const router = express.Router();
  *               phone:
  *                 type: string
  *                 example: 0123456789
+ *               address:
+ *                 type: string
+ *                 example: 123 Nguyen Trai, District 1, Ho Chi Minh City
+ *               avatar:
+ *                 type: string
+ *                 example: https://example.com/avatars/user-1.jpg
  *     responses:
  *       201:
  *         description: Register successful

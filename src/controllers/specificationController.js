@@ -2,11 +2,11 @@ const specificationService = require("../services/specificationService");
 
 exports.createSpecification = async (req, res) => {
     try {
-        const { product_id, attribute_name, attribute_value } = req.body;
-        if (!product_id || !attribute_name || !attribute_value) {
+        const { product_id, spec_name, spec_value } = req.body;
+        if (!product_id || !spec_name || !spec_value) {
             return res.status(400).json({
                 success: false,
-                error: 'product_id, attribute_name and attribute_value are required'
+                error: 'product_id, spec_name and spec_value are required'
             });
         }
 
@@ -61,9 +61,8 @@ exports.updateSpecification = async (req, res) => {
         }
 
         const payload = {
-            attribute_name: req.body.attribute_name ?? existingSpec.attribute_name,
-            attribute_value: req.body.attribute_value ?? existingSpec.attribute_value,
-            unit: req.body.unit ?? existingSpec.unit
+            spec_name: req.body.spec_name ?? existingSpec.spec_name,
+            spec_value: req.body.spec_value ?? existingSpec.spec_value
         };
 
         const updatedSpec = await specificationService.updateSpecification(specId, payload);

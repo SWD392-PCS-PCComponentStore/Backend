@@ -8,7 +8,7 @@ class UserService {
         if (!user) {
             return user;
         }
-        const { password_hash, ...safeUser } = user;
+        const { password, ...safeUser } = user;
         return safeUser;
     }
 
@@ -22,8 +22,10 @@ class UserService {
         const newUser = await User.create({
             name: userData.name || userData.fullname,
             email: userData.email,
-            password_hash: hashedPassword,
-            phone: userData.phone
+            password: hashedPassword,
+            phone: userData.phone,
+            address: userData.address,
+            avatar: userData.avatar
         });
 
         return UserService.sanitizeUser(newUser);
@@ -34,12 +36,11 @@ class UserService {
             throw new Error('Invalid email or password');
         }
 
-        // Check if password_hash exists
-        if (!user.password_hash) {
+        if (!user.password) {
             throw new Error('User account is invalid. Please contact administrator or re-register.');
         }
 
-        const isMatch = await bcrypt.compare(password, user.password_hash);
+        const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             throw new Error('Invalid email or password');
         }

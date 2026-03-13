@@ -26,22 +26,16 @@ const specificationController = require("../controllers/specificationController"
  *           format: int32
  *           description: Product ID
  *           example: 1
- *         attribute_name:
+ *         spec_name:
  *           type: string
  *           maxLength: 255
  *           description: Specification name
  *           example: GPU Memory
- *         attribute_value:
+ *         spec_value:
  *           type: string
  *           maxLength: 255
  *           description: Specification value
  *           example: 24GB GDDR6X
- *         unit:
- *           type: string
- *           maxLength: 50
- *           nullable: true
- *           description: Optional unit
- *           example: GB
  */
 
 /**
@@ -59,26 +53,21 @@ const specificationController = require("../controllers/specificationController"
  *             type: object
  *             required:
  *               - product_id
- *               - attribute_name
- *               - attribute_value
+ *               - spec_name
+ *               - spec_value
  *             properties:
  *               product_id:
  *                 type: integer
  *                 format: int32
  *                 example: 1
- *               attribute_name:
+ *               spec_name:
  *                 type: string
  *                 maxLength: 255
  *                 example: Core Clock
- *               attribute_value:
+ *               spec_value:
  *                 type: string
  *                 maxLength: 255
  *                 example: 2.52 GHz
- *               unit:
- *                 type: string
- *                 maxLength: 50
- *                 nullable: true
- *                 example: GHz
  *     responses:
  *       201:
  *         description: Specification created successfully
@@ -163,22 +152,17 @@ router.get("/product/:productId", specificationController.getSpecificationsByPro
  *           schema:
  *             type: object
  *             required:
- *               - attribute_name
- *               - attribute_value
+ *               - spec_name
+ *               - spec_value
  *             properties:
- *               attribute_name:
+ *               spec_name:
  *                 type: string
  *                 maxLength: 255
  *                 example: Core Clock
- *               attribute_value:
+ *               spec_value:
  *                 type: string
  *                 maxLength: 255
  *                 example: 2.60
- *               unit:
- *                 type: string
- *                 maxLength: 50
- *                 nullable: true
- *                 example: GHz
  *     responses:
  *       200:
  *         description: Specification updated successfully
