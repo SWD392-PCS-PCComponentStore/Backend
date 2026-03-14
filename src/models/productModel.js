@@ -14,6 +14,13 @@ class Product{
         .query('SELECT p.*, c.name AS category_name FROM dbo.PRODUCT p LEFT JOIN dbo.CATEGORY c ON p.category_id = c.category_id WHERE p.product_id = @product_id');
     }
 
+    static async getByCategoryId(categoryId){
+        const conn = await pool;
+        return await conn.request()
+        .input('category_id', sql.Int, categoryId)
+        .query('SELECT p.*, c.name AS category_name FROM dbo.PRODUCT p LEFT JOIN dbo.CATEGORY c ON p.category_id = c.category_id WHERE p.category_id = @category_id');
+    }
+
     static async create(productData){
         const conn = await pool;
         return await conn.request()
