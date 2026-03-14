@@ -8,7 +8,8 @@ const pcBuildRoute = require("./pcBuildRoute");
 const specificationRoute = require("./specificationRoute");
 const uploadRoute = require("./uploadRoute");
 const cartRoute = require("./cartRoute");
-// const userRoute = require("./userRoute");
+const userBuildRoute = require("./userBuildRoute");
+const userRoute = require("./userRoute");
 
 /* ======================
    Test Route
@@ -29,6 +30,7 @@ router.use("/pc-builds", pcBuildRoute);
 router.use("/specifications", specificationRoute);
 router.use("/upload", uploadRoute);
 router.use("/cart", cartRoute);
-// router.use("/users", userRoute);
+router.use("/user-builds", userBuildRoute);
+router.use("/users", userRoute);
 
 module.exports = router;
