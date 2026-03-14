@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const sql = require("mssql");
 
 const dbServer = process.env.DB_SERVER; // e.g. localhost or DESKTOP-XXXX
