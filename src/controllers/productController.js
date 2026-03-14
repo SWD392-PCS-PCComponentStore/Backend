@@ -41,6 +41,30 @@ exports.getProductById = async (req, res) => {
     }
 }
 
+exports.getProductsByCategoryId = async (req, res) => {
+    try {
+        const categoryId = Number(req.params.category_id);
+        if (!Number.isInteger(categoryId) || categoryId <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid category_id'
+            });
+        }
+
+        const products = await productService.getProductsByCategoryId(categoryId);
+        res.json({
+            success: true,
+            data: products
+        });
+    } catch (error) {
+        console.error('❌ Get products by category id error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+}
+
 exports.createProduct = async (req, res) => {
     try {
         const { name, category_id, price } = req.body;
