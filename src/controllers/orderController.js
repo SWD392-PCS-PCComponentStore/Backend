@@ -41,6 +41,61 @@ exports.getOrderById = async (req, res) => {
     }
 };
 
+exports.getOrdersByUserId = async (req, res) => {
+    try {
+        const userId = Number(req.params.userId);
+        if (!Number.isInteger(userId) || userId <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'userId must be a positive integer',
+            });
+        }
+
+        if (req.user?.role !== 'admin' && Number(req.user?.userId) !== userId) {
+            return res.status(403).json({
+                success: false,
+                error: 'You are not allowed to access this resource',
+            });
+        }
+
+        const orders = await orderService.getOrdersByUserId(userId);
+        res.json({
+            success: true,
+            data: orders,
+        });
+    } catch (error) {
+        console.error('❌ Get orders by user id error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+        });
+    }
+};
+
+exports.getMyOrders = async (req, res) => {
+    try {
+        const userId = Number(req.user?.userId);
+        if (!Number.isInteger(userId) || userId <= 0) {
+            return res.status(401).json({
+                success: false,
+                error: 'Unauthorized user',
+            });
+        }
+
+        const orders = await orderService.getOrdersByUserId(userId);
+        res.json({
+            success: true,
+            data: orders,
+        });
+    } catch (error) {
+        console.error('❌ Get my orders error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+        });
+    }
+};
+
 exports.createOrder = async (req, res) => {
     try {
         const userId = Number(req.user?.userId);
