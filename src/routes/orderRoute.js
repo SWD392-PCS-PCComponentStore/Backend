@@ -1,6 +1,6 @@
 const express = require('express');
 const orderController = require('../controllers/orderController');
-const { authenticate, authorize } = require('../middlewares/authMiddleware');
+const { authenticate } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
@@ -81,9 +81,9 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/orders/staff/all:
+ * /api/orders:
  *   get:
- *     summary: Get all orders (admin/staff)
+ *     summary: Get all orders
  *     tags: [Orders]
  *     security:
  *       - BearerAuth: []
@@ -102,14 +102,12 @@ const router = express.Router();
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/Order'
- *       403:
- *         description: Forbidden
  *       401:
  *         description: Unauthorized
  *       500:
  *         description: Internal server error
  */
-router.get('/staff/all', authenticate, authorize('admin', 'staff'), orderController.getAllOrders);
+router.get('/', authenticate, orderController.getAllOrders);
 
 /**
  * @swagger

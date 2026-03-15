@@ -10,7 +10,10 @@ const uploadRoute = require("./uploadRoute");
 const cartRoute = require("./cartRoute");
 const promotionRoute = require("./promotionRoute");
 const orderRoute = require("./orderRoute");
-// const userRoute = require("./userRoute");
+const checkoutRoute = require("./checkoutRoute");
+const paymentRoute = require("./paymentRoute");
+const userBuildRoute = require("./userBuildRoute");
+const userRoute = require("./userRoute");
 
 /* ======================
    Test Route
@@ -33,6 +36,9 @@ router.use("/upload", uploadRoute);
 router.use("/cart", cartRoute);
 router.use("/promotions", promotionRoute);
 router.use("/orders", orderRoute);
-// router.use("/users", userRoute);
+router.use("/checkout", checkoutRoute);
+router.use("/payments", paymentRoute);
+router.use("/user-builds", userBuildRoute);
+router.use("/users", userRoute);
 
 module.exports = router;
