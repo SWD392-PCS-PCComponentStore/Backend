@@ -10,6 +10,11 @@ exports.getOrderById = async (id) => {
     return result.recordset[0];
 };
 
+exports.getOrdersByUserId = async (userId) => {
+    const result = await Order.getByUserId(userId);
+    return result.recordset;
+};
+
 exports.createOrder = async (orderData) => {
     return await Order.create(orderData);
 };

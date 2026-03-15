@@ -1,6 +1,6 @@
 const express = require('express');
 const orderController = require('../controllers/orderController');
-const { authenticate } = require('../middlewares/authMiddleware');
+const { authenticate, authorize } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
@@ -81,9 +81,9 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/orders:
+ * /api/orders/staff/all:
  *   get:
- *     summary: Get all orders
+ *     summary: Get all orders (admin/staff)
  *     tags: [Orders]
  *     security:
  *       - BearerAuth: []
@@ -102,12 +102,86 @@ const router = express.Router();
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/Order'
+ *       403:
+ *         description: Forbidden
  *       401:
  *         description: Unauthorized
  *       500:
  *         description: Internal server error
  */
-router.get('/', authenticate, orderController.getAllOrders);
+router.get('/staff/all', authenticate, authorize('admin', 'staff'), orderController.getAllOrders);
+
+/**
+ * @swagger
+ * /api/orders/me:
+ *   get:
+ *     summary: Get my orders from access token
+ *     tags: [Orders]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of current user's orders
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Order'
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/me', authenticate, orderController.getMyOrders);
+
+/**
+ * @swagger
+ * /api/orders/user/{userId}:
+ *   get:
+ *     summary: Get all orders by user ID
+ *     tags: [Orders]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: User ID
+ *         example: 3
+ *     responses:
+ *       200:
+ *         description: List of orders for the given user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Order'
+ *       400:
+ *         description: Invalid userId
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/user/:userId', authenticate, orderController.getOrdersByUserId);
 
 /**
  * @swagger

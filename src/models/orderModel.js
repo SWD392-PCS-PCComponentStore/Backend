@@ -60,6 +60,32 @@ class Order {
             `);
     }
 
+    static async getByUserId(userId) {
+        const conn = await pool;
+        return await conn.request()
+            .input('user_id', sql.Int, userId)
+            .query(`
+                SELECT
+                    o.*,
+                    u.name AS user_name,
+                    u.email AS user_email,
+                    u.phone AS user_phone,
+                    p.code AS promotion_code,
+                    pay.payment_method
+                FROM dbo.[ORDER] o
+                LEFT JOIN dbo.USERS u ON u.user_id = o.user_id
+                LEFT JOIN dbo.PROMOTION p ON p.promotion_id = o.promotion_id
+                OUTER APPLY (
+                    SELECT TOP 1 pm.payment_method
+                    FROM dbo.Payment pm
+                    WHERE pm.order_id = o.order_id
+                    ORDER BY pm.payment_id DESC
+                ) pay
+                WHERE o.user_id = @user_id
+                ORDER BY o.order_id DESC
+            `);
+    }
+
     static async create(orderData) {
         const conn = await pool;
         const transaction = new sql.Transaction(conn);
