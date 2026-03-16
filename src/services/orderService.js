@@ -16,22 +16,30 @@ const attachOrderItems = async (orders) => {
         }));
     }
 
-    const itemResult = await Order.getItemsByOrderIds(orderIds);
-    const items = itemResult.recordset || [];
+    try {
+        const itemResult = await Order.getItemsByOrderIds(orderIds);
+        const items = itemResult.recordset || [];
 
-    const itemsByOrderId = new Map();
-    for (const item of items) {
-        const key = Number(item.order_id);
-        if (!itemsByOrderId.has(key)) {
-            itemsByOrderId.set(key, []);
+        const itemsByOrderId = new Map();
+        for (const item of items) {
+            const key = Number(item.order_id);
+            if (!itemsByOrderId.has(key)) {
+                itemsByOrderId.set(key, []);
+            }
+            itemsByOrderId.get(key).push(item);
         }
-        itemsByOrderId.get(key).push(item);
-    }
 
-    return orders.map((order) => ({
-        ...order,
-        order_items: itemsByOrderId.get(Number(order.order_id)) || [],
-    }));
+        return orders.map((order) => ({
+            ...order,
+            order_items: itemsByOrderId.get(Number(order.order_id)) || [],
+        }));
+    } catch (error) {
+        console.error('Attach order items failed, fallback to empty items:', error.message || error);
+        return orders.map((order) => ({
+            ...order,
+            order_items: [],
+        }));
+    }
 };
 
 exports.getAllOrders = async () => {
