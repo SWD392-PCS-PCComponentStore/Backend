@@ -246,14 +246,6 @@ exports.updateOrder = async (req, res) => {
 
 exports.deleteOrder = async (req, res) => {
     try {
-        const existingOrder = await orderService.getOrderById(req.params.id);
-        if (!existingOrder) {
-            return res.status(404).json({
-                success: false,
-                error: 'Order not found',
-            });
-        }
-
         const result = await orderService.deleteOrder(req.params.id);
         res.json({
             success: true,
@@ -261,13 +253,6 @@ exports.deleteOrder = async (req, res) => {
         });
     } catch (error) {
         console.error('❌ Delete order error:', error);
-
-        if (error.message && error.message.toLowerCase().includes('foreign key')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Cannot delete order because it is being referenced by related records',
-            });
-        }
 
         res.status(500).json({
             success: false,
