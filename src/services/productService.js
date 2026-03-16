@@ -10,6 +10,11 @@ exports.getProductById = async (id) => {
     return result.recordset[0];
 }
 
+exports.getProductsByCategoryId = async (categoryId) => {
+    const result = await Product.getByCategoryId(categoryId);
+    return result.recordset;
+}
+
 exports.createProduct = async (productData) => {
     const result = await Product.create(productData);
     return result.recordset[0];

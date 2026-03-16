@@ -99,6 +99,43 @@ router.get("/", productController.getAllProducts);
 
 /**
  * @swagger
+ * /api/products/category/{category_id}:
+ *   get:
+ *     summary: Get products by category ID
+ *     tags: [Products]
+ *     security: []
+ *     parameters:
+ *       - in: path
+ *         name: category_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Category ID
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: List of products in this category
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *       400:
+ *         description: Invalid category ID
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/category/:category_id", productController.getProductsByCategoryId);
+
+/**
+ * @swagger
  * /api/products/{id}:
  *   get:
  *     summary: Get product by ID

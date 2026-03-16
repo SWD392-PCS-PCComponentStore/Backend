@@ -1,5 +1,11 @@
 const jwt = require('jsonwebtoken');
 
+// Tương thích ngược dữ liệu cũ: role "user" -> "manager"
+const normalizeRole = (role) => {
+  if (!role) return role;
+  return role === 'user' ? 'manager' : role;
+};
+
 /**
  * Middleware để verify JWT token
  * Sử dụng cho các route cần authentication
@@ -35,7 +41,7 @@ const authenticate = (req, res, next) => {
     req.user = {
       userId: decoded.userId,
       email: decoded.email,
-      role: decoded.role,
+      role: normalizeRole(decoded.role),
     };
 
     next();
@@ -67,6 +73,8 @@ const authenticate = (req, res, next) => {
  * @returns {Function} Express middleware
  */
 const authorize = (...allowedRoles) => {
+  const normalizedAllowedRoles = allowedRoles.map(normalizeRole);
+
   return (req, res, next) => {
     // Kiểm tra xem đã có thông tin user chưa (phải dùng authenticate trước)
     if (!req.user) {
@@ -77,7 +85,9 @@ const authorize = (...allowedRoles) => {
     }
 
     // Kiểm tra role
-    if (!allowedRoles.includes(req.user.role)) {
+    const userRole = normalizeRole(req.user.role);
+
+    if (!normalizedAllowedRoles.includes(userRole)) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Insufficient permissions',
@@ -94,9 +104,40 @@ const authorize = (...allowedRoles) => {
 const requireAdmin = [authenticate, authorize('admin')];
 
 /**
- * Middleware kết hợp: authenticate và authorize admin hoặc user
+ * Middleware kết hợp: authenticate và authorize manager
  */
-const requireUser = [authenticate, authorize('admin', 'user')];
+const requireManager = [authenticate, authorize('manager')];
+
+/**
+ * Middleware kết hợp: authenticate và authorize staff
+ */
+const requireStaff = [authenticate, authorize('staff')];
+
+/**
+ * Middleware kết hợp: authenticate và authorize customer
+ */
+const requireCustomer = [authenticate, authorize('customer')];
+
+/**
+ * Middleware kết hợp: authenticate và authorize admin hoặc manager
+ */
+const requireAdminOrManager = [
+  authenticate,
+  authorize('admin', 'manager'),
+];
+
+/**
+ * Middleware kết hợp: authenticate và authorize manager hoặc staff
+ */
+const requireManagerOrStaff = [
+  authenticate,
+  authorize('manager', 'staff'),
+];
+
+/**
+ * Giữ tên cũ requireUser để tránh sửa route, nhưng giá trị role là admin/manager
+ */
+const requireUser = [authenticate, authorize('admin', 'manager', 'user')];
 
 /**
  * Optional authentication - không bắt buộc phải có token
@@ -122,7 +163,7 @@ const optionalAuth = (req, res, next) => {
     req.user = {
       userId: decoded.userId,
       email: decoded.email,
-      role: decoded.role,
+      role: normalizeRole(decoded.role),
     };
 
     next();
@@ -136,6 +177,11 @@ module.exports = {
   authenticate,
   authorize,
   requireAdmin,
+  requireManager,
+  requireStaff,
+  requireCustomer,
+  requireAdminOrManager,
+  requireManagerOrStaff,
   requireUser,
   optionalAuth,
 };

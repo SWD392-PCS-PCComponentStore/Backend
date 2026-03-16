@@ -14,6 +14,13 @@ class Product{
         .query('SELECT p.*, c.name AS category_name FROM dbo.PRODUCT p LEFT JOIN dbo.CATEGORY c ON p.category_id = c.category_id WHERE p.product_id = @product_id');
     }
 
+    static async getByCategoryId(categoryId){
+        const conn = await pool;
+        return await conn.request()
+        .input('category_id', sql.Int, categoryId)
+        .query('SELECT p.*, c.name AS category_name FROM dbo.PRODUCT p LEFT JOIN dbo.CATEGORY c ON p.category_id = c.category_id WHERE p.category_id = @category_id');
+    }
+
     static async create(productData){
         const conn = await pool;
         return await conn.request()
@@ -49,9 +56,34 @@ class Product{
 
     static async delete(id){
         const conn = await pool;
-        return await conn.request()
-        .input('product_id', sql.Int, id)
-        .query('DELETE FROM dbo.PRODUCT WHERE product_id = @product_id');
+        const transaction = new sql.Transaction(conn);
+
+        try {
+            await transaction.begin();
+
+            const req = () => new sql.Request(transaction).input('product_id', sql.Int, id);
+
+            // Xóa các bảng con không nullable trước
+            await req().query('DELETE FROM dbo.PRODUCT_SPEC WHERE product_id = @product_id');
+            await req().query('DELETE FROM dbo.PRODUCT_BENCHMARK WHERE product_id = @product_id');
+            await req().query('DELETE FROM dbo.AI_BUILD_ITEMS WHERE product_id = @product_id');
+            await req().query('DELETE FROM dbo.PC_Build_Items WHERE product_id = @product_id');
+            await req().query('DELETE FROM dbo.UserBuildItems WHERE product_id = @product_id');
+
+            // Set NULL các bảng cho phép null (giữ lại lịch sử đơn hàng / giỏ hàng)
+            await req().query('UPDATE dbo.PC_Builds SET product_id = NULL WHERE product_id = @product_id');
+            await req().query('UPDATE dbo.CART_ITEM SET product_id = NULL WHERE product_id = @product_id');
+            await req().query('UPDATE dbo.ORDER_DETAIL SET product_id = NULL WHERE product_id = @product_id');
+
+            // Xóa product
+            const result = await req().query('DELETE FROM dbo.PRODUCT WHERE product_id = @product_id');
+
+            await transaction.commit();
+            return result;
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
     }
 }
 module.exports = Product;

@@ -11,7 +11,13 @@ const compatibilityRoute = require("./compatibilityRoute");
 const uploadRoute = require("./uploadRoute");
 const cartRoute = require("./cartRoute");
 const aiRoute = require("./aiRoute");
-// const userRoute = require("./userRoute");
+const promotionRoute = require("./promotionRoute");
+const orderRoute = require("./orderRoute");
+const checkoutRoute = require("./checkoutRoute");
+const paymentRoute = require("./paymentRoute");
+const userBuildRoute = require("./userBuildRoute");
+const userRoute = require("./userRoute");
+const staffBuildRequestRoute = require("./staffBuildRequestRoute");
 
 /* ======================
    Test Route
@@ -35,6 +41,12 @@ router.use("/compatibility", compatibilityRoute);
 router.use("/upload", uploadRoute);
 router.use("/cart", cartRoute);
 router.use("/ai", aiRoute);
-// router.use("/users", userRoute);
+router.use("/promotions", promotionRoute);
+router.use("/orders", orderRoute);
+router.use("/checkout", checkoutRoute);
+router.use("/payments", paymentRoute);
+router.use("/user-builds", userBuildRoute);
+router.use("/users", userRoute);
+router.use("/staff-build-requests", staffBuildRequestRoute);
 
 module.exports = router;
