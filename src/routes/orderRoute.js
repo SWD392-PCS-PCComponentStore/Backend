@@ -1,6 +1,6 @@
 const express = require('express');
 const orderController = require('../controllers/orderController');
-const { authenticate } = require('../middlewares/authMiddleware');
+const { authenticate, authorize } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
@@ -427,6 +427,6 @@ router.put('/:id', authenticate, orderController.updateOrder);
  *       500:
  *         description: Internal server error
  */
-router.delete('/:id', authenticate, orderController.deleteOrder);
+router.delete('/:id', authenticate, authorize('admin'), orderController.deleteOrder);
 
 module.exports = router;

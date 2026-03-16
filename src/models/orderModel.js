@@ -333,9 +333,43 @@ class Order {
 
     static async delete(id) {
         const conn = await pool;
-        return await conn.request()
-            .input('order_id', sql.Int, id)
-            .query('DELETE FROM dbo.[ORDER] WHERE order_id = @order_id');
+        const transaction = new sql.Transaction(conn);
+        await transaction.begin();
+
+        try {
+            await new sql.Request(transaction)
+                .input('order_id', sql.Int, id)
+                .query(`
+                    DELETE idt
+                    FROM dbo.INSTALLMENT_DETAILS idt
+                    JOIN dbo.INSTALLMENT_PLANS ip ON ip.plan_id = idt.plan_id
+                    WHERE ip.order_id = @order_id
+                `);
+
+            await new sql.Request(transaction)
+                .input('order_id', sql.Int, id)
+                .query('DELETE FROM dbo.INSTALLMENT_PLANS WHERE order_id = @order_id');
+
+            await new sql.Request(transaction)
+                .input('order_id', sql.Int, id)
+                .query('DELETE FROM dbo.Payment WHERE order_id = @order_id');
+
+            await new sql.Request(transaction)
+                .input('order_id', sql.Int, id)
+                .query('DELETE FROM dbo.ORDER_DETAIL WHERE order_id = @order_id');
+
+            const deleteOrderResult = await new sql.Request(transaction)
+                .input('order_id', sql.Int, id)
+                .query('DELETE FROM dbo.[ORDER] WHERE order_id = @order_id');
+
+            await transaction.commit();
+            return deleteOrderResult;
+        } catch (error) {
+            if (transaction._aborted !== true) {
+                await transaction.rollback();
+            }
+            throw error;
+        }
     }
 }
 
