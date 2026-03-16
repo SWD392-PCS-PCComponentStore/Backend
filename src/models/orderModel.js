@@ -86,6 +86,44 @@ class Order {
             `);
     }
 
+    static async getItemsByOrderIds(orderIds) {
+        if (!Array.isArray(orderIds) || orderIds.length === 0) {
+            return { recordset: [] };
+        }
+
+        const conn = await pool;
+        const request = conn.request();
+        const uniqueOrderIds = Array.from(new Set(orderIds.map((id) => Number(id)).filter(Number.isInteger)));
+
+        if (uniqueOrderIds.length === 0) {
+            return { recordset: [] };
+        }
+
+        const orderIdParams = uniqueOrderIds.map((_, index) => `@order_id_${index}`);
+        uniqueOrderIds.forEach((orderId, index) => {
+            request.input(`order_id_${index}`, sql.Int, orderId);
+        });
+
+        return await request.query(`
+            SELECT
+                od.order_detail_id,
+                od.order_id,
+                od.product_id,
+                od.user_build_id,
+                od.quantity,
+                od.price,
+                p.name AS product_name,
+                p.image_url AS product_image_url,
+                ub.build_name AS user_build_name,
+                ub.total_price AS user_build_total_price
+            FROM dbo.ORDER_DETAIL od
+            LEFT JOIN dbo.PRODUCT p ON p.product_id = od.product_id
+            LEFT JOIN dbo.UserBuilds ub ON ub.user_build_id = od.user_build_id
+            WHERE od.order_id IN (${orderIdParams.join(', ')})
+            ORDER BY od.order_detail_id ASC
+        `);
+    }
+
     static async create(orderData) {
         const conn = await pool;
         const transaction = new sql.Transaction(conn);
