@@ -13,23 +13,23 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/payments/online/qr:
- *   get:
- *     summary: Generate VietQR for online full payment of current user active payment
+ * /api/payments/qr-full:
+ *   post:
+ *     summary: Generate VietQR for QR_FULL payment of current user active payment
  *     tags: [Payment]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: QR generated successfully
+ *         description: QR_FULL generated successfully
  */
-router.get("/online/qr", authenticate, paymentController.getOnlineQrByPaymentId);
+router.post("/qr-full", authenticate, paymentController.createQrFullPayment);
 
 /**
  * @swagger
- * /api/payments/installment/qr:
+ * /api/payments/qr-installment:
  *   post:
- *     summary: Generate VietQR for installment payment of current user active payment
+ *     summary: Generate VietQR for QR_INSTALLMENT payment of current user active payment
  *     tags: [Payment]
  *     security:
  *       - bearerAuth: []
@@ -45,13 +45,27 @@ router.get("/online/qr", authenticate, paymentController.getOnlineQrByPaymentId)
  *               months:
  *                 type: integer
  *                 enum: [3, 5, 9, 12]
- *                 description: Installment months
+ *                 description: Installment months (suggested 3, 5, 9, 12)
  *                 example: 5
  *     responses:
  *       200:
- *         description: Installment QR generated successfully
+ *         description: QR_INSTALLMENT generated successfully
  */
-router.post("/installment/qr", authenticate, paymentController.getInstallmentQrByPaymentId);
+router.post("/qr-installment", authenticate, paymentController.createQrInstallmentPayment);
+
+/**
+ * @swagger
+ * /api/payments/cod:
+ *   post:
+ *     summary: Select COD payment for current user active payment
+ *     tags: [Payment]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: COD selected successfully
+ */
+router.post("/cod", authenticate, paymentController.createCodPayment);
 
 /**
  * @swagger
@@ -77,6 +91,10 @@ router.post("/installment/qr", authenticate, paymentController.getInstallmentQrB
  *       200:
  *         description: Payment confirmed successfully
  */
-router.patch("/confirm", authenticate, paymentController.confirmPaymentSuccess);
+router.patch("/confirm", authenticate, paymentController.confirmPaymentUpdate);
+
+// Backward-compatible legacy routes
+router.get("/online/qr", authenticate, paymentController.getOnlineQrByPaymentId);
+router.post("/installment/qr", authenticate, paymentController.getInstallmentQrByPaymentId);
 
 module.exports = router;

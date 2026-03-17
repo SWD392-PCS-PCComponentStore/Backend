@@ -6,8 +6,10 @@ const INSTALLMENT_INTEREST_BY_MONTH = {
     9: 0.014,
     12: 0.016
 };
+const INSTALLMENT_MONTH_OPTIONS = [3, 5, 9, 12];
 
 const roundMoney = (value) => parseFloat(Number(value || 0).toFixed(2));
+const normalizeMethod = (method) => String(method || "").trim().toUpperCase();
 
 const getBankInfo = () => ({
     bank_name: process.env.VIETQR_BANK_NAME || "VietQR Bank",
@@ -97,6 +99,15 @@ const getCurrentPaymentIdForUser = async (requesterUserId) => {
     return current.payment_id;
 };
 
+const ensurePaymentMethod = (payment, expectedMethod) => {
+    const currentMethod = normalizeMethod(payment.payment_method);
+    if (currentMethod !== expectedMethod) {
+        throw new Error(
+            `Payment method mismatch. Expected ${expectedMethod}, got ${currentMethod || "N/A"}`
+        );
+    }
+};
+
 const ensureInstallmentPlan = async (orderId, principalAmount, months) => {
     const existingPlanResult = await PaymentModel.getInstallmentPlanByOrderId(orderId);
     const existingPlan = existingPlanResult.recordset[0];
@@ -144,6 +155,7 @@ const ensureInstallmentPlan = async (orderId, principalAmount, months) => {
 
 exports.getOnlineQrByPaymentId = async (paymentId, requesterUserId) => {
     const payment = await getPaymentRow(paymentId, requesterUserId);
+    ensurePaymentMethod(payment, "QR_FULL");
     if (String(payment.payment_status || "").toLowerCase() === "đã thanh toán" || String(payment.payment_status || "").toLowerCase() === "paid") {
         throw new Error("Payment already completed");
     }
@@ -163,6 +175,7 @@ exports.getOnlineQrByPaymentId = async (paymentId, requesterUserId) => {
 
     return {
         payment_id: paymentId,
+        payment_method: "QR_FULL",
         bank_info: getBankInfo(),
         total_amount: amount,
         qr_url: quickLink
@@ -176,6 +189,7 @@ exports.getOnlineQrForCurrentUser = async (requesterUserId) => {
 
 exports.getInstallmentQrByPaymentId = async (paymentId, months, requesterUserId) => {
     const payment = await getPaymentRow(paymentId, requesterUserId);
+    ensurePaymentMethod(payment, "QR_INSTALLMENT");
 
     const plan = await ensureInstallmentPlan(
         payment.order_id,
@@ -212,11 +226,15 @@ exports.getInstallmentQrByPaymentId = async (paymentId, months, requesterUserId)
 
     return {
         payment_id: paymentId,
+        payment_method: "QR_INSTALLMENT",
+        suggested_month_options: INSTALLMENT_MONTH_OPTIONS,
         bank_info: getBankInfo(),
         months: monthsValue,
         total_amount: totalInstallmentAmount,
         monthly_interest_amount: monthlyInterestAmount,
         monthly_interest_rate_percent: monthlyInterestRate,
+        next_installment_number: Number(nextInstallment.installment_number),
+        next_installment_amount: amount,
         qr_url: quickLink
     };
 };
@@ -226,9 +244,43 @@ exports.getInstallmentQrForCurrentUser = async (months, requesterUserId) => {
     return await exports.getInstallmentQrByPaymentId(paymentId, months, requesterUserId);
 };
 
+exports.selectCodByPaymentId = async (paymentId, requesterUserId) => {
+    const payment = await getPaymentRow(paymentId, requesterUserId);
+    ensurePaymentMethod(payment, "COD");
+
+    if (String(payment.payment_status || "").toLowerCase() === "đã thanh toán" || String(payment.payment_status || "").toLowerCase() === "paid") {
+        throw new Error("Payment already completed");
+    }
+
+    await PaymentModel.updateOrderPaymentType(payment.order_id, "One-time");
+    await PaymentModel.updatePaymentSelection(
+        paymentId,
+        roundMoney(payment.order_total_amount),
+        "COD",
+        "Pending"
+    );
+
+    return {
+        payment_id: paymentId,
+        payment_method: "COD",
+        total_amount: roundMoney(payment.order_total_amount),
+        note: "Thanh toán khi nhận hàng"
+    };
+};
+
+exports.selectCodForCurrentUser = async (requesterUserId) => {
+    const paymentId = await getCurrentPaymentIdForUser(requesterUserId);
+    return await exports.selectCodByPaymentId(paymentId, requesterUserId);
+};
+
 exports.confirmPaymentSuccess = async (paymentId, confirmationMessage, requesterUserId) => {
-    if (String(confirmationMessage || "").trim() !== "Đã thanh toán thành công") {
-        throw new Error("confirmation_message must be 'Đã thanh toán thành công'");
+    const normalizedConfirmation = String(confirmationMessage || "").trim();
+    if (
+        normalizedConfirmation &&
+        normalizedConfirmation !== "Đã thanh toán thành công" &&
+        normalizedConfirmation.toUpperCase() !== "CONFIRMED"
+    ) {
+        throw new Error("confirmation_message must be 'Đã thanh toán thành công' or 'CONFIRMED'");
     }
 
     const payment = await getPaymentRow(paymentId, requesterUserId);
