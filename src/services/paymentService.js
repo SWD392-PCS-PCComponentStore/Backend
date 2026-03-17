@@ -8,17 +8,52 @@ const INSTALLMENT_INTEREST_BY_MONTH = {
 };
 const INSTALLMENT_MONTH_OPTIONS = [3, 5, 9, 12];
 
+const DEFAULT_VIETQR_BANK_NAME = "VCB";
+const DEFAULT_VIETQR_ACCOUNT_NO = "9931330034";
+const DEFAULT_VIETQR_ACCOUNT_NAME = "TRAN ANH TU";
+const DEFAULT_VIETQR_ACQ_ID = "970436";
+const DEFAULT_VIETQR_TEMPLATE = "compact";
+const DEFAULT_VIETQR_TEMPLATE_ID = "kXcqiTq";
+
 const roundMoney = (value) => parseFloat(Number(value || 0).toFixed(2));
 const normalizeMethod = (method) => String(method || "").trim().toUpperCase();
 
-const getBankInfo = () => ({
-    bank_name: process.env.VIETQR_BANK_NAME || "VietQR Bank",
-    account_no: process.env.VIETQR_ACCOUNT_NO || "113366668888"
+const getVietQrConfig = () => ({
+    bankName: process.env.VIETQR_BANK_NAME || DEFAULT_VIETQR_BANK_NAME,
+    accountNo: process.env.VIETQR_ACCOUNT_NO || DEFAULT_VIETQR_ACCOUNT_NO,
+    accountName: process.env.VIETQR_ACCOUNT_NAME || DEFAULT_VIETQR_ACCOUNT_NAME,
+    acqId: process.env.VIETQR_ACQ_ID || DEFAULT_VIETQR_ACQ_ID,
+    template: process.env.VIETQR_TEMPLATE || DEFAULT_VIETQR_TEMPLATE,
+    templateId: process.env.VIETQR_TEMPLATE_ID || DEFAULT_VIETQR_TEMPLATE_ID
 });
+
+const getBankInfo = () => ({
+    bank_name: getVietQrConfig().bankName,
+    account_no: getVietQrConfig().accountNo,
+    account_name: getVietQrConfig().accountName
+});
+
+const replaceQuickLinkPlaceholders = (template, { amount, addInfo }) => {
+    const numericAmount = String(Math.round(Number(amount || 0)));
+    const normalizedAddInfo = String(addInfo || "");
+    const orderIdMatch = normalizedAddInfo.match(/ORDER(\d+)/i);
+    const orderId = orderIdMatch ? orderIdMatch[1] : "";
+
+    return template
+        .replaceAll("{orderTotal}", numericAmount)
+        .replaceAll("{amount}", numericAmount)
+        .replaceAll("{orderId}", orderId)
+        .replaceAll("{addInfo}", encodeURIComponent(normalizedAddInfo));
+};
 
 const buildVietQrQuickLink = ({ amount, addInfo }) => {
     const configuredQuickLink = process.env.VIETQR_QUICK_LINK;
     if (configuredQuickLink) {
+        const hasTemplatePlaceholders = /\{orderTotal\}|\{amount\}|\{orderId\}|\{addInfo\}/i.test(configuredQuickLink);
+        if (hasTemplatePlaceholders) {
+            return replaceQuickLinkPlaceholders(configuredQuickLink, { amount, addInfo });
+        }
+
         const configuredUrl = new URL(configuredQuickLink);
         configuredUrl.searchParams.set("amount", String(Math.round(Number(amount || 0))));
         if (addInfo) {
@@ -27,9 +62,7 @@ const buildVietQrQuickLink = ({ amount, addInfo }) => {
         return configuredUrl.toString();
     }
 
-    const acqId = process.env.VIETQR_ACQ_ID || "970415";
-    const accountNo = process.env.VIETQR_ACCOUNT_NO || "113366668888";
-    const templateId = process.env.VIETQR_TEMPLATE_ID || "kXcqiTq";
+    const { acqId, accountNo, templateId } = getVietQrConfig();
 
     const url = new URL(`https://api.vietqr.io/image/${acqId}-${accountNo}-${templateId}.jpg`);
     url.searchParams.set("amount", String(Math.round(Number(amount || 0))));
@@ -43,18 +76,19 @@ const buildVietQrQuickLink = ({ amount, addInfo }) => {
 const tryGenerateVietQr = async ({ amount, addInfo }) => {
     const clientId = process.env.VIETQR_CLIENT_ID;
     const apiKey = process.env.VIETQR_API_KEY;
+    const { accountNo, accountName, acqId, template } = getVietQrConfig();
 
     if (!clientId || !apiKey) {
         return null;
     }
 
     const payload = {
-        accountNo: process.env.VIETQR_ACCOUNT_NO || "113366668888",
-        accountName: process.env.VIETQR_ACCOUNT_NAME || "WED BAN HANG PC COMPONENT STORE",
-        acqId: process.env.VIETQR_ACQ_ID || "970415",
+        accountNo,
+        accountName,
+        acqId,
         addInfo,
         amount: String(Math.round(Number(amount || 0))),
-        template: process.env.VIETQR_TEMPLATE || "compact"
+        template
     };
 
     const response = await fetch("https://api.vietqr.io/v2/generate", {
