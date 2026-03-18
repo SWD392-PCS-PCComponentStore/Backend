@@ -19,29 +19,40 @@ const roundMoney = (value) => parseFloat(Number(value || 0).toFixed(2));
 const normalizeMethod = (method) => String(method || "").trim().toUpperCase();
 const normalizeStatus = (status) => String(status || "").trim().toLowerCase();
 
-const encodeVnpComponent = (value) => encodeURIComponent(String(value ?? ""))
-    .replace(/%20/g, "+")
-    .replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+const sortVnpParams = (params = {}) => {
+    const sorted = {};
+    const keys = Object.keys(params)
+        .filter((key) => params[key] !== undefined && params[key] !== null && params[key] !== "")
+        .sort();
 
-const buildVnpHashData = (params) => {
-    const sortedKeys = Object.keys(params).sort();
-    return sortedKeys
-        .map((key) => `${encodeVnpComponent(key)}=${encodeVnpComponent(params[key])}`)
-        .join("&");
+    for (const key of keys) {
+        sorted[encodeURIComponent(key)] = encodeURIComponent(String(params[key])).replace(/%20/g, "+");
+    }
+
+    return sorted;
 };
 
-const buildVnpQueryString = (params) => {
-    const sortedKeys = Object.keys(params).sort();
-    return sortedKeys
-        .map((key) => `${encodeVnpComponent(key)}=${encodeVnpComponent(params[key])}`)
-        .join("&");
+const stringifyVnpParams = (params = {}) => Object.entries(params)
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+
+const buildVnpHashData = (params) => stringifyVnpParams(sortVnpParams(params));
+const buildVnpQueryString = (params) => stringifyVnpParams(sortVnpParams(params));
+
+const getTrimmedEnv = (...keys) => {
+    for (const key of keys) {
+        if (process.env[key] !== undefined) {
+            return String(process.env[key]).trim();
+        }
+    }
+    return "";
 };
 
 const getVnpayConfig = () => ({
-    tmnCode: process.env.VNP_TMNCODE || process.env.VNPAY_TMNCODE || "",
-    hashSecret: process.env.VNP_HASHSECRET || process.env.VNPAY_HASHSECRET || "",
-    paymentUrl: process.env.VNP_URL || process.env.VNPAY_URL || "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
-    returnUrl: process.env.VNP_RETURN_URL || process.env.VNPAY_RETURN_URL || "http://localhost:5000/api/payments/vnpay/return"
+    tmnCode: getTrimmedEnv("VNP_TMNCODE", "VNPAY_TMNCODE"),
+    hashSecret: getTrimmedEnv("VNP_HASHSECRET", "VNPAY_HASHSECRET"),
+    paymentUrl: getTrimmedEnv("VNP_URL", "VNPAY_URL") || "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
+    returnUrl: getTrimmedEnv("VNP_RETURN_URL", "VNPAY_RETURN_URL") || "http://localhost:5000/api/payments/vnpay/return"
 });
 
 const resolveClientIp = (clientIp) => {
