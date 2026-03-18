@@ -155,7 +155,7 @@ const ensurePaymentMethod = (payment, expectedMethod) => {
     }
 };
 
-const buildVnpayPaymentUrl = ({ amount, txnRef, orderInfo, clientIp, bankCode }) => {
+const buildVnpayPaymentUrl = ({ amount, txnRef, orderInfo, clientIp }) => {
     const { tmnCode, hashSecret, paymentUrl, returnUrl } = getVnpayConfig();
 
     if (!tmnCode || !hashSecret || !paymentUrl) {
@@ -181,9 +181,7 @@ const buildVnpayPaymentUrl = ({ amount, txnRef, orderInfo, clientIp, bankCode })
         vnp_ExpireDate: formatDateYmdHis(expireDate)
     };
 
-    if (bankCode) {
-        params.vnp_BankCode = bankCode;
-    }
+    
 
     const vnpSecureHash = signVnpParams(params, hashSecret);
     const queryString = `${buildVnpQueryString(params)}&vnp_SecureHash=${vnpSecureHash}`;
@@ -367,8 +365,7 @@ exports.getOnlineQrByPaymentId = async (paymentId, requesterUserId, clientIp) =>
         amount,
         txnRef,
         orderInfo: `Thanh toan don hang ORDER${payment.order_id}`,
-        clientIp,
-        bankCode: "VNPAYQR"
+        clientIp
     });
 
     return {
