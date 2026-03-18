@@ -1,9 +1,11 @@
 const paymentService = require("../services/paymentService");
 
+const resolveClientIp = (req) => req.headers["x-forwarded-for"] || req.ip || req.socket?.remoteAddress;
+
 exports.createQrFullPayment = async (req, res) => {
     try {
         const requesterUserId = Number(req.user?.userId);
-        const data = await paymentService.getOnlineQrForCurrentUser(requesterUserId);
+        const data = await paymentService.getOnlineQrForCurrentUser(requesterUserId, resolveClientIp(req));
         return res.json({ success: true, data });
     } catch (error) {
         console.error("Create QR_FULL payment error:", error);
@@ -17,16 +19,12 @@ exports.createQrFullPayment = async (req, res) => {
         if (error.message === "Forbidden payment access") {
             return res.status(403).json({ success: false, error: error.message });
         }
-        if (error.message.startsWith("Payment method mismatch")) {
-            return res.status(400).json({ success: false, error: error.message });
-        }
         if (
-            error.message === "Payment already completed"
+            error.message.startsWith("Payment method mismatch") ||
+            error.message === "Payment already completed" ||
+            error.message.includes("VNPAY config missing")
         ) {
             return res.status(400).json({ success: false, error: error.message });
-        }
-        if (error.message.includes("VietQR")) {
-            return res.status(502).json({ success: false, error: error.message });
         }
 
         return res.status(500).json({ success: false, error: "Internal server error" });
@@ -38,7 +36,11 @@ exports.createQrInstallmentPayment = async (req, res) => {
         const requesterUserId = Number(req.user?.userId);
         const { months } = req.body;
 
-        const data = await paymentService.getInstallmentQrForCurrentUser(months, requesterUserId);
+        const data = await paymentService.getInstallmentQrForCurrentUser(
+            months,
+            requesterUserId,
+            resolveClientIp(req)
+        );
         return res.json({ success: true, data });
     } catch (error) {
         console.error("Create QR_INSTALLMENT payment error:", error);
@@ -53,14 +55,12 @@ exports.createQrInstallmentPayment = async (req, res) => {
         if (error.message === "Forbidden payment access") {
             return res.status(403).json({ success: false, error: error.message });
         }
-        if (error.message.startsWith("Payment method mismatch")) {
+        if (
+            error.message.startsWith("Payment method mismatch") ||
+            error.message.startsWith("months must be") ||
+            error.message.includes("VNPAY config missing")
+        ) {
             return res.status(400).json({ success: false, error: error.message });
-        }
-        if (error.message.startsWith("months must be")) {
-            return res.status(400).json({ success: false, error: error.message });
-        }
-        if (error.message.includes("VietQR")) {
-            return res.status(502).json({ success: false, error: error.message });
         }
 
         return res.status(500).json({ success: false, error: "Internal server error" });
@@ -84,10 +84,10 @@ exports.createCodPayment = async (req, res) => {
         if (error.message === "Forbidden payment access") {
             return res.status(403).json({ success: false, error: error.message });
         }
-        if (error.message.startsWith("Payment method mismatch")) {
-            return res.status(400).json({ success: false, error: error.message });
-        }
-        if (error.message === "Payment already completed") {
+        if (
+            error.message.startsWith("Payment method mismatch") ||
+            error.message === "Payment already completed"
+        ) {
             return res.status(400).json({ success: false, error: error.message });
         }
 
@@ -112,22 +112,78 @@ exports.confirmPaymentUpdate = async (req, res) => {
     } catch (error) {
         console.error("Confirm payment update error:", error);
 
-        if (error.message === "Payment not found") {
-            return res.status(404).json({ success: false, error: error.message });
-        }
-        if (error.message === "No unpaid installment found") {
-            return res.status(404).json({ success: false, error: error.message });
-        }
-        if (error.message === "No active payment found for user") {
+        if (
+            error.message === "Payment not found" ||
+            error.message === "No unpaid installment found" ||
+            error.message === "No active payment found for user"
+        ) {
             return res.status(404).json({ success: false, error: error.message });
         }
         if (error.message === "Forbidden payment access") {
             return res.status(403).json({ success: false, error: error.message });
         }
         if (
-            error.message === "confirmation_message must be 'Đã thanh toán thành công'" ||
+            error.message === "Manual confirm is disabled. Use VNPay IPN flow" ||
             error.message === "confirmation_message must be 'Đã thanh toán thành công' or 'CONFIRMED'" ||
-            error.message === "Payment method is not selected yet"
+            error.message === "Payment method is not selected yet" ||
+            error.message.startsWith("Insufficient stock")
+        ) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+
+        return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+};
+
+exports.vnpayIpn = async (req, res) => {
+    try {
+        const result = await paymentService.handleVnpayIpn(req.query);
+        return res.json(result);
+    } catch (error) {
+        console.error("VNPAY IPN error:", error);
+        return res.status(500).json({ RspCode: "99", Message: "Unknown error" });
+    }
+};
+
+exports.vnpayReturn = async (req, res) => {
+    try {
+        const result = await paymentService.handleVnpayReturn(req.query);
+        return res.json({ success: true, data: result });
+    } catch (error) {
+        console.error("VNPAY Return error:", error);
+        return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+};
+
+exports.getPendingAdminCompletion = async (req, res) => {
+    try {
+        const data = await paymentService.getPendingAdminCompletionPayments();
+        return res.json({ success: true, data });
+    } catch (error) {
+        console.error("Get pending admin completion error:", error);
+        return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+};
+
+exports.adminCompleteOrder = async (req, res) => {
+    try {
+        const paymentId = Number(req.params.paymentId);
+        if (!Number.isInteger(paymentId) || paymentId <= 0) {
+            return res.status(400).json({ success: false, error: "paymentId must be a positive integer" });
+        }
+
+        const data = await paymentService.adminCompleteOrderByPaymentId(paymentId);
+        return res.json({ success: true, data });
+    } catch (error) {
+        console.error("Admin complete order error:", error);
+        if (
+            error.message === "Payment not found"
+        ) {
+            return res.status(404).json({ success: false, error: error.message });
+        }
+        if (
+            error.message === "Order already completed" ||
+            error.message === "Order is not ready for admin completion"
         ) {
             return res.status(400).json({ success: false, error: error.message });
         }
@@ -140,4 +196,3 @@ exports.confirmPaymentUpdate = async (req, res) => {
 exports.getOnlineQrByPaymentId = exports.createQrFullPayment;
 exports.getInstallmentQrByPaymentId = exports.createQrInstallmentPayment;
 exports.confirmPaymentSuccess = exports.confirmPaymentUpdate;
-
