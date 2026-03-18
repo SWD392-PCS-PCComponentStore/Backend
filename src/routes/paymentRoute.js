@@ -1,6 +1,6 @@
 const express = require("express");
 const paymentController = require("../controllers/paymentController");
-const { authenticate } = require("../middlewares/authMiddleware");
+const { authenticate, authorize } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
@@ -15,10 +15,10 @@ const router = express.Router();
  * @swagger
  * /api/payments/qr-full:
  *   post:
- *     summary: Generate VietQR for QR_FULL payment of current user active payment
+ *     summary: Generate VNPay payment URL for QR_FULL payment of current user active payment
  *     tags: [Payment]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     responses:
  *       200:
  *         description: QR_FULL generated successfully
@@ -29,10 +29,10 @@ router.post("/qr-full", authenticate, paymentController.createQrFullPayment);
  * @swagger
  * /api/payments/qr-installment:
  *   post:
- *     summary: Generate VietQR for QR_INSTALLMENT payment of current user active payment
+ *     summary: Generate VNPay payment URL for QR_INSTALLMENT payment of current user active payment
  *     tags: [Payment]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -44,9 +44,9 @@ router.post("/qr-full", authenticate, paymentController.createQrFullPayment);
  *             properties:
  *               months:
  *                 type: integer
- *                 enum: [3, 5, 9, 12]
- *                 description: Installment months (suggested 3, 5, 9, 12)
- *                 example: 5
+ *                 enum: [3, 6, 9, 12]
+ *                 description: Installment months (suggested 3, 6, 9, 12)
+ *                 example: 6
  *     responses:
  *       200:
  *         description: QR_INSTALLMENT generated successfully
@@ -60,7 +60,7 @@ router.post("/qr-installment", authenticate, paymentController.createQrInstallme
  *     summary: Select COD payment for current user active payment
  *     tags: [Payment]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     responses:
  *       200:
  *         description: COD selected successfully
@@ -71,10 +71,10 @@ router.post("/cod", authenticate, paymentController.createCodPayment);
  * @swagger
  * /api/payments/confirm:
  *   patch:
- *     summary: Confirm payment success for current user active payment
+ *     summary: Manual confirm payment (TEST ONLY, not production flow)
  *     tags: [Payment]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -92,6 +92,22 @@ router.post("/cod", authenticate, paymentController.createCodPayment);
  *         description: Payment confirmed successfully
  */
 router.patch("/confirm", authenticate, paymentController.confirmPaymentUpdate);
+
+router.get("/vnpay/ipn", paymentController.vnpayIpn);
+router.get("/vnpay/return", paymentController.vnpayReturn);
+
+router.get(
+	"/admin/pending-completion",
+	authenticate,
+	authorize("admin"),
+	paymentController.getPendingAdminCompletion
+);
+router.patch(
+	"/admin/:paymentId/complete",
+	authenticate,
+	authorize("admin"),
+	paymentController.adminCompleteOrder
+);
 
 // Backward-compatible legacy routes
 router.get("/online/qr", authenticate, paymentController.getOnlineQrByPaymentId);
