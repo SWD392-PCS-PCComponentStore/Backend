@@ -4,6 +4,46 @@ const roundMoney = (value) => parseFloat(Number(value || 0).toFixed(2));
 
 const normalizePaymentMethod = (paymentMethod) => String(paymentMethod || '').trim().toUpperCase();
 
+const deductProductStock = async (transaction, items) => {
+    for (const item of items) {
+        if (!item.product_id) {
+            continue;
+        }
+
+        const updateResult = await new sql.Request(transaction)
+            .input('product_id', sql.Int, item.product_id)
+            .input('quantity', sql.Int, item.quantity)
+            .query(`
+                UPDATE dbo.PRODUCT
+                SET stock_quantity = stock_quantity - @quantity
+                WHERE product_id = @product_id
+                  AND stock_quantity >= @quantity
+            `);
+
+        const updatedRows = Array.isArray(updateResult.rowsAffected) ? updateResult.rowsAffected[0] : 0;
+        if (updatedRows > 0) {
+            continue;
+        }
+
+        const stockResult = await new sql.Request(transaction)
+            .input('product_id', sql.Int, item.product_id)
+            .query(`
+                SELECT stock_quantity
+                FROM dbo.PRODUCT
+                WHERE product_id = @product_id
+            `);
+
+        const product = stockResult.recordset[0];
+        if (!product) {
+            throw new Error(`Product ${item.product_id} not found`);
+        }
+
+        throw new Error(
+            `Insufficient stock for product ${item.product_id}. Available: ${product.stock_quantity}`
+        );
+    }
+};
+
 const resolveOrderPaymentType = (paymentMethod) => {
     if (paymentMethod === 'QR_INSTALLMENT') {
         return 'Installment';
@@ -187,6 +227,8 @@ class Order {
             if (subtotal <= 0) {
                 throw new Error('Cart total amount is invalid');
             }
+
+            await deductProductStock(transaction, itemsWithPrice);
 
             let promotionId = null;
             let promotionCode = null;
