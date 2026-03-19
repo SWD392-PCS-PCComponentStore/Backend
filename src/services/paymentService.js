@@ -14,10 +14,32 @@ const VNP_DEFAULT_COMMAND = "pay";
 const VNP_DEFAULT_CURR_CODE = "VND";
 const VNP_DEFAULT_LOCALE = "vn";
 const VNP_DEFAULT_ORDER_TYPE = "other";
+const VIETQR_DEFAULT_AMOUNT = 10000;
+const ORDER_STATUS_PENDING_PAYMENT = "Chờ thanh toán";
+const ORDER_STATUS_WAITING_APPROVAL = "Chờ duyệt";
+const ORDER_STATUS_INSTALLMENT = "Đang trả góp";
+const ORDER_STATUS_WAITING_RECEIVE = "Chờ nhận hàng";
+const ORDER_STATUS_COMPLETED = "Hoàn Thành";
+const PAYMENT_STATUS_PENDING_PAYMENT = "Chờ thanh toán";
+const PAYMENT_STATUS_WAITING_APPROVAL = "Chờ duyệt";
+const PAYMENT_STATUS_INSTALLMENT = "Đang trả góp";
+const PAYMENT_STATUS_WAITING_RECEIVE = "Chờ nhận hàng";
 
 const roundMoney = (value) => parseFloat(Number(value || 0).toFixed(2));
 const normalizeMethod = (method) => String(method || "").trim().toUpperCase();
 const normalizeStatus = (status) => String(status || "").trim().toLowerCase();
+const isWaitingApprovalStatus = (status) => {
+    const normalized = normalizeStatus(status);
+    return normalized === normalizeStatus(ORDER_STATUS_WAITING_APPROVAL) || normalized === "chờ admin/manager duyệt";
+};
+
+const isAdminCompletableStatus = (status) => {
+    const normalized = normalizeStatus(status);
+    return normalized === normalizeStatus(ORDER_STATUS_WAITING_APPROVAL)
+        || normalized === normalizeStatus(ORDER_STATUS_INSTALLMENT)
+        || normalized === normalizeStatus(ORDER_STATUS_WAITING_RECEIVE)
+        || normalized === "chờ admin/manager duyệt";
+};
 
 const sortVnpParams = (params = {}) => {
     const sorted = {};
@@ -53,6 +75,15 @@ const getVnpayConfig = () => ({
     hashSecret: getTrimmedEnv("VNP_HASHSECRET", "VNPAY_HASHSECRET"),
     paymentUrl: getTrimmedEnv("VNP_URL", "VNPAY_URL") || "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
     returnUrl: getTrimmedEnv("VNP_RETURN_URL", "VNPAY_RETURN_URL") || "http://localhost:5000/api/payments/vnpay/return"
+});
+
+const getVietQrConfig = () => ({
+    accountNo: getTrimmedEnv("VIETQR_ACCOUNT_NO"),
+    accountName: getTrimmedEnv("VIETQR_ACCOUNT_NAME"),
+    acqId: getTrimmedEnv("VIETQR_ACQ_ID"),
+    template: getTrimmedEnv("VIETQR_TEMPLATE") || "compact",
+    templateId: getTrimmedEnv("VIETQR_TEMPLATE_ID"),
+    quickLink: getTrimmedEnv("VIETQR_QUICK_LINK")
 });
 
 const resolveClientIp = (clientIp) => {
@@ -144,7 +175,13 @@ const parseTxnRef = (txnRef) => {
 
 const isFirstPaidTransition = (paymentStatus) => {
     const status = normalizeStatus(paymentStatus);
-    return status === "" || status === "pending" || status === "chờ thanh toán";
+    return status === ""
+        || status === "pending"
+        || status === normalizeStatus(PAYMENT_STATUS_PENDING_PAYMENT)
+        || status === normalizeStatus(PAYMENT_STATUS_WAITING_APPROVAL)
+        || status === normalizeStatus(PAYMENT_STATUS_INSTALLMENT)
+        || status === normalizeStatus(PAYMENT_STATUS_WAITING_RECEIVE)
+        || isWaitingApprovalStatus(status);
 };
 
 const getPaymentRow = async (paymentId, requesterUserId) => {
@@ -212,6 +249,30 @@ const buildVnpayPaymentUrl = ({ amount, txnRef, orderInfo, clientIp }) => {
         txnRef,
         payment_url: `${paymentUrl}?${queryString}`,
         vnp_params: params
+    };
+};
+
+const buildVietQrQuickLink = () => {
+    const { accountNo, accountName, acqId, template, templateId, quickLink } = getVietQrConfig();
+    const amount = VIETQR_DEFAULT_AMOUNT;
+
+    if (quickLink) {
+        return {
+            provider: "VIETQR",
+            payment_url: quickLink
+        };
+    }
+
+    const templateSegment = templateId || template;
+    if (!acqId || !accountNo || !templateSegment || !accountName) {
+        throw new Error("VietQR config missing (VIETQR_ACQ_ID, VIETQR_ACCOUNT_NO, VIETQR_TEMPLATE or VIETQR_TEMPLATE_ID, VIETQR_ACCOUNT_NAME)");
+    }
+
+    const paymentUrl = `https://api.vietqr.io/image/${acqId}-${accountNo}-${templateSegment}.jpg?accountName=${encodeURIComponent(accountName)}&amount=${amount}`;
+
+    return {
+        provider: "VIETQR",
+        payment_url: paymentUrl
     };
 };
 
@@ -297,7 +358,7 @@ const markSuccessfulPaymentForOrder = async ({ payment, installmentMode = false,
 
         if (unpaidCount === 0) {
             paymentStatus = "Đã thanh toán";
-            orderStatus = "Chờ admin hoàn tất";
+            orderStatus = ORDER_STATUS_WAITING_APPROVAL;
             await PaymentModel.updateInstallmentPlanStatus(nextInstallment.plan_id, "Completed");
         }
 
@@ -328,11 +389,11 @@ const markSuccessfulPaymentForOrder = async ({ payment, installmentMode = false,
     }
 
     await PaymentModel.updatePaymentStatus(payment.payment_id, "Đã thanh toán");
-    await PaymentModel.updateOrderStatus(payment.order_id, "Chờ admin hoàn tất");
+    await PaymentModel.updateOrderStatus(payment.order_id, ORDER_STATUS_WAITING_APPROVAL);
 
     return {
         payment_status: "Đã thanh toán",
-        order_status: "Chờ admin hoàn tất",
+        order_status: ORDER_STATUS_WAITING_APPROVAL,
         admin_notification: "Khách hàng đã thanh toán thành công. Admin vui lòng xác nhận hoàn tất đơn."
     };
 };
@@ -377,24 +438,17 @@ exports.getOnlineQrByPaymentId = async (paymentId, requesterUserId, clientIp) =>
         paymentId,
         roundMoney(payment.order_total_amount),
         "QR_FULL",
-        "Pending"
+        PAYMENT_STATUS_PENDING_PAYMENT
     );
+    await PaymentModel.updateOrderStatus(payment.order_id, ORDER_STATUS_PENDING_PAYMENT);
 
-    const amount = roundMoney(payment.order_total_amount);
-    const txnRef = buildTxnRef(paymentId);
-
-    const vnpay = buildVnpayPaymentUrl({
-        amount,
-        txnRef,
-        orderInfo: `Thanh toan don hang ORDER${payment.order_id}`,
-        clientIp
-    });
+    const vietQr = buildVietQrQuickLink();
 
     return {
         payment_id: paymentId,
         payment_method: "QR_FULL",
-        total_amount: amount,
-        ...vnpay
+        total_amount: roundMoney(payment.order_total_amount),
+        ...vietQr
     };
 };
 
@@ -418,8 +472,9 @@ exports.getInstallmentQrByPaymentId = async (paymentId, months, requesterUserId,
         paymentId,
         roundMoney(plan.total_amount),
         "QR_INSTALLMENT",
-        "Pending"
+        PAYMENT_STATUS_INSTALLMENT
     );
+    await PaymentModel.updateOrderStatus(payment.order_id, ORDER_STATUS_INSTALLMENT);
 
     const nextInstallmentResult = await PaymentModel.getNextUnpaidInstallmentByOrderId(payment.order_id);
     const nextInstallment = nextInstallmentResult.recordset[0];
@@ -428,14 +483,7 @@ exports.getInstallmentQrByPaymentId = async (paymentId, months, requesterUserId,
     }
 
     const amount = roundMoney(nextInstallment.amount_to_pay);
-    const txnRef = buildTxnRef(paymentId, Number(nextInstallment.installment_number));
-
-    const vnpay = buildVnpayPaymentUrl({
-        amount,
-        txnRef,
-        orderInfo: `Thanh toan tra gop ORDER${payment.order_id} ky ${nextInstallment.installment_number}`,
-        clientIp
-    });
+    const vietQr = buildVietQrQuickLink();
 
     const principalAmount = roundMoney(payment.order_total_amount);
     const totalInstallmentAmount = roundMoney(plan.total_amount);
@@ -453,7 +501,7 @@ exports.getInstallmentQrByPaymentId = async (paymentId, months, requesterUserId,
         monthly_interest_rate_percent: monthlyInterestRate,
         next_installment_number: Number(nextInstallment.installment_number),
         next_installment_amount: amount,
-        ...vnpay
+        ...vietQr
     };
 };
 
@@ -476,15 +524,16 @@ exports.selectCodByPaymentId = async (paymentId, requesterUserId) => {
         paymentId,
         roundMoney(payment.order_total_amount),
         "COD",
-        "Pending"
+        PAYMENT_STATUS_WAITING_RECEIVE
     );
-    await PaymentModel.updateOrderStatus(payment.order_id, "Chờ giao hàng");
+    await PaymentModel.updateOrderStatus(payment.order_id, ORDER_STATUS_WAITING_RECEIVE);
 
     return {
         payment_id: paymentId,
         payment_method: "COD",
         total_amount: roundMoney(payment.order_total_amount),
-        order_status: "Chờ giao hàng",
+        payment_status: PAYMENT_STATUS_WAITING_RECEIVE,
+        order_status: ORDER_STATUS_WAITING_RECEIVE,
         note: "Thanh toán khi nhận hàng"
     };
 };
@@ -495,10 +544,6 @@ exports.selectCodForCurrentUser = async (requesterUserId) => {
 };
 
 exports.confirmPaymentSuccess = async (paymentId, confirmationMessage, requesterUserId) => {
-    if (String(process.env.ALLOW_MANUAL_PAYMENT_CONFIRM || "false").toLowerCase() !== "true") {
-        throw new Error("Manual confirm is disabled. Use VNPay IPN flow");
-    }
-
     const normalizedConfirmation = String(confirmationMessage || "").trim();
     if (
         normalizedConfirmation &&
@@ -515,11 +560,33 @@ exports.confirmPaymentSuccess = async (paymentId, confirmationMessage, requester
         throw new Error("Payment method is not selected yet");
     }
 
-    return await markSuccessfulPaymentForOrder({
-        payment,
-        installmentMode: method === "QR_INSTALLMENT",
-        paymentSource: "Manual"
-    });
+    if (normalizeStatus(payment.order_status) === normalizeStatus(ORDER_STATUS_COMPLETED)) {
+        throw new Error("Order already completed");
+    }
+
+    let nextPaymentStatus = PAYMENT_STATUS_WAITING_APPROVAL;
+    let nextOrderStatus = ORDER_STATUS_WAITING_APPROVAL;
+
+    if (method === "QR_INSTALLMENT") {
+        nextPaymentStatus = PAYMENT_STATUS_INSTALLMENT;
+        nextOrderStatus = ORDER_STATUS_INSTALLMENT;
+    } else if (method === "COD") {
+        nextPaymentStatus = PAYMENT_STATUS_WAITING_RECEIVE;
+        nextOrderStatus = ORDER_STATUS_WAITING_RECEIVE;
+    }
+
+    await PaymentModel.updatePaymentStatus(payment.payment_id, nextPaymentStatus);
+    await PaymentModel.updateOrderStatus(payment.order_id, nextOrderStatus);
+
+    return {
+        payment_id: Number(payment.payment_id),
+        order_id: Number(payment.order_id),
+        payment_method: method,
+        payment_status: nextPaymentStatus,
+        order_status: nextOrderStatus,
+        approval_for_roles: ["admin", "manager"],
+        message: "Đã ghi nhận xác nhận từ user. Admin/Manager có thể kiểm tra và hoàn tất đơn."
+    };
 };
 
 exports.confirmPaymentSuccessForCurrentUser = async (confirmationMessage, requesterUserId) => {
@@ -619,20 +686,26 @@ exports.getPendingAdminCompletionPayments = async () => {
 
 exports.adminCompleteOrderByPaymentId = async (paymentId) => {
     const payment = await getPaymentRow(paymentId);
-    if (normalizeStatus(payment.order_status) === "hoàn thành") {
+    if (normalizeStatus(payment.order_status) === normalizeStatus(ORDER_STATUS_COMPLETED)) {
         throw new Error("Order already completed");
     }
 
-    if (normalizeStatus(payment.order_status) !== "chờ admin hoàn tất") {
-        throw new Error("Order is not ready for admin completion");
+    if (!isAdminCompletableStatus(payment.order_status)) {
+        throw new Error("Order is not ready for admin/manager completion");
     }
 
-    await PaymentModel.updateOrderStatus(payment.order_id, "Hoàn Thành");
+    if (isFirstPaidTransition(payment.payment_status)) {
+        await PaymentModel.deductProductStockByOrderId(payment.order_id);
+    }
+
+    await PaymentModel.updatePaymentStatus(payment.payment_id, "Đã thanh toán");
+    await PaymentModel.updateOrderStatus(payment.order_id, ORDER_STATUS_COMPLETED);
 
     return {
         payment_id: Number(payment.payment_id),
         order_id: Number(payment.order_id),
-        order_status: "Hoàn Thành"
+        payment_status: "Đã thanh toán",
+        order_status: ORDER_STATUS_COMPLETED
     };
 };
 

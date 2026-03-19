@@ -15,7 +15,7 @@ const router = express.Router();
  * @swagger
  * /api/payments/qr-full:
  *   post:
- *     summary: Generate VNPay payment URL for QR_FULL payment of current user active payment
+ *     summary: Generate VietQR payment image link for QR_FULL payment of current user active payment
  *     tags: [Payment]
  *     security:
  *       - BearerAuth: []
@@ -29,7 +29,7 @@ router.post("/qr-full", authenticate, paymentController.createQrFullPayment);
  * @swagger
  * /api/payments/qr-installment:
  *   post:
- *     summary: Generate VNPay payment URL for QR_INSTALLMENT payment of current user active payment
+ *     summary: Generate VietQR payment image link for QR_INSTALLMENT payment of current user active payment
  *     tags: [Payment]
  *     security:
  *       - BearerAuth: []
@@ -71,18 +71,16 @@ router.post("/cod", authenticate, paymentController.createCodPayment);
  * @swagger
  * /api/payments/confirm:
  *   patch:
- *     summary: Manual confirm payment (TEST ONLY, not production flow)
+ *     summary: User confirms transfer completed, system updates order to waiting approval
  *     tags: [Payment]
  *     security:
  *       - BearerAuth: []
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - confirmation_message
  *             properties:
  *               confirmation_message:
  *                 type: string
@@ -99,13 +97,34 @@ router.get("/vnpay/return", paymentController.vnpayReturn);
 router.get(
 	"/admin/pending-completion",
 	authenticate,
-	authorize("admin"),
+	authorize("admin", "manager"),
 	paymentController.getPendingAdminCompletion
 );
+
+/**
+ * @swagger
+ * /api/payments/admin/{paymentId}/complete:
+ *   patch:
+ *     summary: Admin/Manager confirms payment and completes the order
+ *     tags: [Payment]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: paymentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Payment ID to complete
+ *     responses:
+ *       200:
+ *         description: Order completed successfully
+ */
 router.patch(
 	"/admin/:paymentId/complete",
 	authenticate,
-	authorize("admin"),
+	authorize("admin", "manager"),
 	paymentController.adminCompleteOrder
 );
 

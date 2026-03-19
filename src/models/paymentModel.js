@@ -431,7 +431,7 @@ class PaymentModel {
                 FROM dbo.Payment p
                 JOIN dbo.[ORDER] o ON o.order_id = p.order_id
                 JOIN dbo.USERS u ON u.user_id = o.user_id
-                WHERE o.status = N'Chờ admin hoàn tất'
+                        WHERE o.status IN (N'Chờ duyệt', N'Chờ admin/manager duyệt', N'Đang trả góp', N'Chờ nhận hàng')
                 ORDER BY p.payment_date DESC, p.payment_id DESC
             `);
     }
