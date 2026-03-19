@@ -4,46 +4,6 @@ const roundMoney = (value) => parseFloat(Number(value || 0).toFixed(2));
 
 const normalizePaymentMethod = (paymentMethod) => String(paymentMethod || '').trim().toUpperCase();
 
-const deductProductStock = async (transaction, items) => {
-    for (const item of items) {
-        if (!item.product_id) {
-            continue;
-        }
-
-        const updateResult = await new sql.Request(transaction)
-            .input('product_id', sql.Int, item.product_id)
-            .input('quantity', sql.Int, item.quantity)
-            .query(`
-                UPDATE dbo.PRODUCT
-                SET stock_quantity = stock_quantity - @quantity
-                WHERE product_id = @product_id
-                  AND stock_quantity >= @quantity
-            `);
-
-        const updatedRows = Array.isArray(updateResult.rowsAffected) ? updateResult.rowsAffected[0] : 0;
-        if (updatedRows > 0) {
-            continue;
-        }
-
-        const stockResult = await new sql.Request(transaction)
-            .input('product_id', sql.Int, item.product_id)
-            .query(`
-                SELECT stock_quantity
-                FROM dbo.PRODUCT
-                WHERE product_id = @product_id
-            `);
-
-        const product = stockResult.recordset[0];
-        if (!product) {
-            throw new Error(`Product ${item.product_id} not found`);
-        }
-
-        throw new Error(
-            `Insufficient stock for product ${item.product_id}. Available: ${product.stock_quantity}`
-        );
-    }
-};
-
 const resolveOrderPaymentType = (paymentMethod) => {
     if (paymentMethod === 'QR_INSTALLMENT') {
         return 'Installment';
@@ -228,8 +188,6 @@ class Order {
                 throw new Error('Cart total amount is invalid');
             }
 
-            await deductProductStock(transaction, itemsWithPrice);
-
             let promotionId = null;
             let promotionCode = null;
             let discountPercent = 0;
@@ -294,6 +252,56 @@ class Order {
                         INSERT INTO dbo.ORDER_DETAIL (order_id, product_id, user_build_id, quantity, price)
                         VALUES (@order_id, @product_id, @user_build_id, @quantity, @price)
                     `);
+            }
+
+            const productQuantities = new Map();
+            for (const item of itemsWithPrice) {
+                const productId = Number(item.product_id);
+                if (!Number.isInteger(productId) || productId <= 0) {
+                    continue;
+                }
+
+                const previousQty = productQuantities.get(productId) || 0;
+                productQuantities.set(productId, previousQty + Number(item.quantity || 0));
+            }
+
+            for (const [productId, quantity] of productQuantities.entries()) {
+                if (!Number.isInteger(quantity) || quantity <= 0) {
+                    continue;
+                }
+
+                const updateStockResult = await new sql.Request(transaction)
+                    .input('product_id', sql.Int, productId)
+                    .input('quantity', sql.Int, quantity)
+                    .query(`
+                        UPDATE dbo.PRODUCT
+                        SET stock_quantity = stock_quantity - @quantity
+                        WHERE product_id = @product_id
+                          AND stock_quantity >= @quantity
+                    `);
+
+                const affectedRows = Array.isArray(updateStockResult.rowsAffected)
+                    ? Number(updateStockResult.rowsAffected[0] || 0)
+                    : 0;
+
+                if (affectedRows === 0) {
+                    const productResult = await new sql.Request(transaction)
+                        .input('product_id', sql.Int, productId)
+                        .query(`
+                            SELECT TOP 1 name, stock_quantity
+                            FROM dbo.PRODUCT
+                            WHERE product_id = @product_id
+                        `);
+
+                    const product = productResult.recordset[0];
+                    if (!product) {
+                        throw new Error(`Product not found (product_id=${productId})`);
+                    }
+
+                    throw new Error(
+                        `Insufficient stock for product \"${product.name}\" (product_id=${productId}). Available: ${product.stock_quantity}, requested: ${quantity}`
+                    );
+                }
             }
 
             const paymentResult = await new sql.Request(transaction)

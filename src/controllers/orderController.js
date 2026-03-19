@@ -174,6 +174,8 @@ exports.createOrder = async (req, res) => {
             error.message === 'Invalid cart item price' ||
             error.message === 'Cart total amount is invalid' ||
             error.message === 'Invalid promotion code or promotion has expired' ||
+            error.message.startsWith('Insufficient stock') ||
+            error.message.startsWith('Product not found') ||
             error.message.startsWith('Unsupported payment_method')
         ) {
             return res.status(400).json({
