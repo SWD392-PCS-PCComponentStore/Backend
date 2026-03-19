@@ -352,6 +352,89 @@ class PaymentModel {
                 WHERE plan_id = @plan_id
             `);
     }
+
+    static async deductProductStockByOrderId(orderId) {
+        const conn = await pool;
+        const transaction = new sql.Transaction(conn);
+        await transaction.begin();
+
+        try {
+            const itemsResult = await new sql.Request(transaction)
+                .input("order_id", sql.Int, orderId)
+                .query(`
+                    SELECT
+                        od.product_id,
+                        SUM(od.quantity) AS total_quantity
+                    FROM dbo.ORDER_DETAIL od
+                    WHERE od.order_id = @order_id
+                      AND od.product_id IS NOT NULL
+                    GROUP BY od.product_id
+                `);
+
+            for (const item of itemsResult.recordset) {
+                const requestedQuantity = Number(item.total_quantity || 0);
+                if (!item.product_id || requestedQuantity <= 0) {
+                    continue;
+                }
+
+                const stockResult = await new sql.Request(transaction)
+                    .input("product_id", sql.Int, item.product_id)
+                    .query(`
+                        SELECT TOP 1 stock_quantity
+                        FROM dbo.PRODUCT
+                        WHERE product_id = @product_id
+                    `);
+
+                const currentStock = Number(stockResult.recordset[0]?.stock_quantity || 0);
+                if (currentStock < requestedQuantity) {
+                    throw new Error(`Insufficient stock for product_id=${item.product_id}. Available: ${currentStock}`);
+                }
+
+                await new sql.Request(transaction)
+                    .input("product_id", sql.Int, item.product_id)
+                    .input("deduct_qty", sql.Int, requestedQuantity)
+                    .query(`
+                        UPDATE dbo.PRODUCT
+                        SET stock_quantity = stock_quantity - @deduct_qty
+                        WHERE product_id = @product_id
+                    `);
+            }
+
+            await transaction.commit();
+            return { success: true };
+        } catch (error) {
+            if (transaction._aborted !== true) {
+                await transaction.rollback();
+            }
+            throw error;
+        }
+    }
+
+    static async getPaymentsPendingAdminCompletion() {
+        const conn = await pool;
+        return await conn.request()
+            .query(`
+                SELECT
+                    p.payment_id,
+                    p.order_id,
+                    p.payment_status,
+                    p.total_amount,
+                    p.payment_method,
+                    p.payment_date,
+                    o.user_id,
+                    o.status AS order_status,
+                    o.shipping_address,
+                    o.total_amount AS order_total_amount,
+                    u.name AS user_name,
+                    u.email AS user_email,
+                    u.phone AS user_phone
+                FROM dbo.Payment p
+                JOIN dbo.[ORDER] o ON o.order_id = p.order_id
+                JOIN dbo.USERS u ON u.user_id = o.user_id
+                        WHERE o.status IN (N'Chờ duyệt', N'Chờ admin/manager duyệt', N'Đang trả góp', N'Chờ nhận hàng')
+                ORDER BY p.payment_date DESC, p.payment_id DESC
+            `);
+    }
 }
 
 module.exports = PaymentModel;

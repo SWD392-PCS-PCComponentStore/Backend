@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:5000/api/ai/test)",
+      "Bash(curl -s -X POST http://localhost:5000/api/ai/build -H \"Content-Type: application/json\" -d \"{\"\"query\"\": \"\"Build PC gaming 25 trieu\"\"}\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\(''''fs''''\\).readFileSync\\(''''/dev/stdin'''',''''utf8''''\\)\\); const b=d.data?.build; console.log\\(''''BuildType:'''', d.data?.analysis?.buildType\\); console.log\\(''''Budget:'''', d.data?.analysis?.budget?.toLocaleString\\(''''vi-VN''''\\)+''''đ''''\\); console.log\\(''''Total:'''', b?.estimated_total_cost?.toLocaleString\\(''''vi-VN''''\\)+''''đ''''\\); console.log\\(''''Score:'''', b?.compatibility?.compatibility_score+''''/100''''\\); console.log\\(''''Explanation:'''', d.data?.explanation\\);\")",
+      "Bash(curl -s -X POST http://localhost:5000/api/ai/build -H \"Content-Type: application/json\" -d \"{\"\"query\"\": \"\"PC van phong 10 trieu\"\"}\")",
+      "Bash(curl -s -X POST http://localhost:5000/api/ai/build -H \"Content-Type: application/json\" -d \"{\"\"query\"\": \"\"toi muon mua may tinh voi gia 15 cu cho muc dich choi game\"\"}\")",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(cmd /c \"taskkill /F /IM node.exe\")",
+      "Bash(cmd /c \"taskkill /F /IM node.exe 2>&1 || echo no node running\")",
+      "Bash(cmd /c \"tasklist /FI \"\"PID eq 6948\"\" 2>&1\")",
+      "Bash(cmd /c \"tasklist | findstr 6948\")",
+      "Bash(cmd /c \"taskkill /PID 6948 /F 2>&1\")"
+    ]
+  }
+}
