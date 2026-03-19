@@ -229,7 +229,7 @@ class Order {
             const insertedOrder = await new sql.Request(transaction)
                 .input('user_id', sql.Int, orderData.user_id)
                 .input('promotion_id', sql.Int, promotionId)
-                .input('status', sql.NVarChar(50), 'Pending')
+                .input('status', sql.NVarChar(50), 'Chờ xác nhận')
                 .input('total_amount', sql.Decimal(18, 2), totalAmount)
                 .input('shipping_address', sql.NVarChar(sql.MAX), orderData.shipping_address)
                 .input('payment_type', sql.VarChar(50), paymentType)
