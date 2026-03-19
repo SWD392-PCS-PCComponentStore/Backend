@@ -205,6 +205,18 @@ const getCurrentPaymentIdForUser = async (requesterUserId) => {
     return current.payment_id;
 };
 
+const getPaymentRowByOrderId = async (orderId, requesterUserId) => {
+    const result = await PaymentModel.getOrderAndPaymentByOrderId(orderId);
+    const row = result.recordset[0];
+    if (!row) {
+        throw new Error("Order not found");
+    }
+    if (requesterUserId && Number(row.user_id) !== Number(requesterUserId)) {
+        throw new Error("Forbidden order access");
+    }
+    return row;
+};
+
 const ensurePaymentMethod = (payment, expectedMethod) => {
     const currentMethod = normalizeMethod(payment.payment_method);
     if (currentMethod !== expectedMethod) {
@@ -543,6 +555,7 @@ exports.selectCodForCurrentUser = async (requesterUserId) => {
     return await exports.selectCodByPaymentId(paymentId, requesterUserId);
 };
 
+
 exports.confirmPaymentSuccess = async (paymentId, confirmationMessage, requesterUserId) => {
     const normalizedConfirmation = String(confirmationMessage || "").trim();
     if (
@@ -684,8 +697,8 @@ exports.getPendingAdminCompletionPayments = async () => {
     return result.recordset || [];
 };
 
-exports.adminCompleteOrderByPaymentId = async (paymentId) => {
-    const payment = await getPaymentRow(paymentId);
+exports.adminCompleteOrderByOrderId = async (orderId) => {
+    const payment = await getPaymentRowByOrderId(orderId);
     if (normalizeStatus(payment.order_status) === normalizeStatus(ORDER_STATUS_COMPLETED)) {
         throw new Error("Order already completed");
     }
