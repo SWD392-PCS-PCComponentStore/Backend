@@ -103,29 +103,29 @@ router.get(
 
 /**
  * @swagger
- * /api/payments/admin/{paymentId}/complete:
+ * /api/payments/admin/order/{orderId}/complete:
  *   patch:
- *     summary: Admin/Manager confirms payment and completes the order
+ *     summary: Admin/Manager confirms payment and completes the order by order ID
  *     tags: [Payment]
  *     security:
  *       - BearerAuth: []
  *     parameters:
  *       - in: path
- *         name: paymentId
+ *         name: orderId
  *         required: true
  *         schema:
  *           type: integer
  *           minimum: 1
- *         description: Payment ID to complete
+ *         description: Order ID to complete
  *     responses:
  *       200:
  *         description: Order completed successfully
  */
 router.patch(
-	"/admin/:paymentId/complete",
+	"/admin/order/:orderId/complete",
 	authenticate,
 	authorize("admin", "manager"),
-	paymentController.adminCompleteOrder
+	paymentController.adminCompleteOrderByOrderId
 );
 
 // Backward-compatible legacy routes

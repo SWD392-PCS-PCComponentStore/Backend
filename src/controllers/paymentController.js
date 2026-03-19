@@ -256,19 +256,20 @@ exports.getPendingAdminCompletion = async (req, res) => {
     }
 };
 
-exports.adminCompleteOrder = async (req, res) => {
+
+exports.adminCompleteOrderByOrderId = async (req, res) => {
     try {
-        const paymentId = Number(req.params.paymentId);
-        if (!Number.isInteger(paymentId) || paymentId <= 0) {
-            return res.status(400).json({ success: false, error: "paymentId must be a positive integer" });
+        const orderId = Number(req.params.orderId);
+        if (!Number.isInteger(orderId) || orderId <= 0) {
+            return res.status(400).json({ success: false, error: "orderId must be a positive integer" });
         }
 
-        const data = await paymentService.adminCompleteOrderByPaymentId(paymentId);
+        const data = await paymentService.adminCompleteOrderByOrderId(orderId);
         return res.json({ success: true, data });
     } catch (error) {
-        console.error("Admin complete order error:", error);
+        console.error("Admin complete order by order ID error:", error);
         if (
-            error.message === "Payment not found"
+            error.message === "Order not found"
         ) {
             return res.status(404).json({ success: false, error: error.message });
         }
@@ -286,4 +287,3 @@ exports.adminCompleteOrder = async (req, res) => {
 // Backward-compatible aliases
 exports.getOnlineQrByPaymentId = exports.createQrFullPayment;
 exports.getInstallmentQrByPaymentId = exports.createQrInstallmentPayment;
-exports.confirmPaymentSuccess = exports.confirmPaymentUpdate;
