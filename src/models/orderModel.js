@@ -254,6 +254,56 @@ class Order {
                     `);
             }
 
+            const productQuantities = new Map();
+            for (const item of itemsWithPrice) {
+                const productId = Number(item.product_id);
+                if (!Number.isInteger(productId) || productId <= 0) {
+                    continue;
+                }
+
+                const previousQty = productQuantities.get(productId) || 0;
+                productQuantities.set(productId, previousQty + Number(item.quantity || 0));
+            }
+
+            for (const [productId, quantity] of productQuantities.entries()) {
+                if (!Number.isInteger(quantity) || quantity <= 0) {
+                    continue;
+                }
+
+                const updateStockResult = await new sql.Request(transaction)
+                    .input('product_id', sql.Int, productId)
+                    .input('quantity', sql.Int, quantity)
+                    .query(`
+                        UPDATE dbo.PRODUCT
+                        SET stock_quantity = stock_quantity - @quantity
+                        WHERE product_id = @product_id
+                          AND stock_quantity >= @quantity
+                    `);
+
+                const affectedRows = Array.isArray(updateStockResult.rowsAffected)
+                    ? Number(updateStockResult.rowsAffected[0] || 0)
+                    : 0;
+
+                if (affectedRows === 0) {
+                    const productResult = await new sql.Request(transaction)
+                        .input('product_id', sql.Int, productId)
+                        .query(`
+                            SELECT TOP 1 name, stock_quantity
+                            FROM dbo.PRODUCT
+                            WHERE product_id = @product_id
+                        `);
+
+                    const product = productResult.recordset[0];
+                    if (!product) {
+                        throw new Error(`Product not found (product_id=${productId})`);
+                    }
+
+                    throw new Error(
+                        `Insufficient stock for product \"${product.name}\" (product_id=${productId}). Available: ${product.stock_quantity}, requested: ${quantity}`
+                    );
+                }
+            }
+
             const paymentResult = await new sql.Request(transaction)
                 .input('order_id', sql.Int, orderId)
                 .input('payment_status', sql.NVarChar(50), 'Pending')
