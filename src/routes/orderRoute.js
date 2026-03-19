@@ -39,7 +39,7 @@ const router = express.Router();
  *         status:
  *           type: string
  *           description: Order status
- *           example: Pending
+ *           example: Chờ xác nhận
  *         total_amount:
  *           type: number
  *           format: decimal
@@ -350,7 +350,7 @@ router.post('/', authenticate, orderController.createOrder);
  *                 example: 1
  *               status:
  *                 type: string
- *                 example: Pending
+ *                 example: Chờ xác nhận
  *               total_amount:
  *                 type: number
  *                 format: decimal
