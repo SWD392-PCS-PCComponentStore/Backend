@@ -88,6 +88,28 @@ const signVnpParams = (params, hashSecret) => {
     return crypto.createHmac("sha512", hashSecret).update(hashData, "utf8").digest("hex");
 };
 
+// VNPay requires '+' to process generation requests, 
+// but sends return callbacks dynamically encoded normally with '%20'.
+// Recreating the string exactly requires skipping '+' mutation for validation.
+const buildVnpHashDataForVerification = (params) => {
+    const sorted = {};
+    const keys = Object.keys(params)
+        .filter((key) => params[key] !== undefined && params[key] !== null && params[key] !== "")
+        .sort();
+
+    for (const key of keys) {
+        // Leave %20 unmutated because Express auto-decoded spaces to %20 which VNPay expects.
+        sorted[encodeURIComponent(key)] = encodeURIComponent(String(params[key]));
+    }
+
+    return stringifyVnpParams(sorted);
+};
+
+const signVnpParamsForVerification = (params, hashSecret) => {
+    const hashData = buildVnpHashDataForVerification(params);
+    return crypto.createHmac("sha512", hashSecret).update(hashData, "utf8").digest("hex");
+};
+
 const buildTxnRef = (paymentId, installmentNumber = null) => {
     if (Number.isInteger(installmentNumber) && installmentNumber > 0) {
         return `INS${paymentId}-${installmentNumber}-${Date.now()}`;
@@ -337,7 +359,7 @@ const verifyVnpaySignature = (query) => {
         signedData[key] = value;
     }
 
-    const secureHash = signVnpParams(signedData, hashSecret);
+    const secureHash = signVnpParamsForVerification(signedData, hashSecret);
     return String(secureHash).toUpperCase() === String(rawSecureHash).toUpperCase();
 };
 
