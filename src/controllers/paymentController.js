@@ -22,7 +22,8 @@ exports.createQrFullPayment = async (req, res) => {
         if (
             error.message.startsWith("Payment method mismatch") ||
             error.message === "Payment already completed" ||
-            error.message.includes("VNPAY config missing")
+            error.message.includes("VNPAY config missing") ||
+            error.message.includes("VietQR config missing")
         ) {
             return res.status(400).json({ success: false, error: error.message });
         }
@@ -58,7 +59,8 @@ exports.createQrInstallmentPayment = async (req, res) => {
         if (
             error.message.startsWith("Payment method mismatch") ||
             error.message.startsWith("months must be") ||
-            error.message.includes("VNPAY config missing")
+            error.message.includes("VNPAY config missing") ||
+            error.message.includes("VietQR config missing")
         ) {
             return res.status(400).json({ success: false, error: error.message });
         }
@@ -123,9 +125,9 @@ exports.confirmPaymentUpdate = async (req, res) => {
             return res.status(403).json({ success: false, error: error.message });
         }
         if (
-            error.message === "Manual confirm is disabled. Use VNPay IPN flow" ||
             error.message === "confirmation_message must be 'Đã thanh toán thành công' or 'CONFIRMED'" ||
             error.message === "Payment method is not selected yet" ||
+            error.message === "Order already completed" ||
             error.message.startsWith("Insufficient stock")
         ) {
             return res.status(400).json({ success: false, error: error.message });
@@ -241,7 +243,13 @@ exports.vnpayReturn = async (req, res) => {
 exports.getPendingAdminCompletion = async (req, res) => {
     try {
         const data = await paymentService.getPendingAdminCompletionPayments();
-        return res.json({ success: true, data });
+        return res.json({
+            success: true,
+            role_scope: ["admin", "manager"],
+            status_scope: ["Chờ duyệt", "Đang trả góp", "Chờ nhận hàng"],
+            message: "Danh sách đơn mà admin/manager có thể kiểm tra để hoàn tất.",
+            data
+        });
     } catch (error) {
         console.error("Get pending admin completion error:", error);
         return res.status(500).json({ success: false, error: "Internal server error" });
@@ -266,7 +274,7 @@ exports.adminCompleteOrder = async (req, res) => {
         }
         if (
             error.message === "Order already completed" ||
-            error.message === "Order is not ready for admin completion"
+            error.message === "Order is not ready for admin/manager completion"
         ) {
             return res.status(400).json({ success: false, error: error.message });
         }
