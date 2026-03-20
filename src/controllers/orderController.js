@@ -248,13 +248,35 @@ exports.updateOrder = async (req, res) => {
 
 exports.deleteOrder = async (req, res) => {
     try {
-        const result = await orderService.deleteOrder(req.params.id);
+        const orderId = Number(req.params.id);
+        if (!Number.isInteger(orderId) || orderId <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Order id must be a positive integer',
+            });
+        }
+
+        const result = await orderService.deleteOrder(orderId);
         res.json({
             success: true,
             message: result.message,
         });
     } catch (error) {
         console.error('❌ Delete order error:', error);
+
+        if (error.message === 'Order not found') {
+            return res.status(404).json({
+                success: false,
+                error: error.message,
+            });
+        }
+
+        if (error.message && error.message.toLowerCase().includes('foreign key')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot delete order due to related data constraints',
+            });
+        }
 
         res.status(500).json({
             success: false,

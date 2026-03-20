@@ -148,7 +148,7 @@ router.get('/:id', promotionController.getPromotionById);
  *   post:
  *     summary: Create new promotion
  *     tags: [Promotions]
- *     description: Requires authenticated account with role shop manager
+ *     description: Requires authenticated account with role admin, manager or staff
  *     security:
  *       - BearerAuth: []
  *     requestBody:
@@ -197,7 +197,7 @@ router.get('/:id', promotionController.getPromotionById);
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden (not shop manager)
+ *         description: Forbidden (not admin, manager or staff)
  *       500:
  *         description: Internal server error
  */
@@ -208,7 +208,7 @@ router.get('/:id', promotionController.getPromotionById);
  *   put:
  *     summary: Update promotion
  *     tags: [Promotions]
- *     description: Requires authenticated account with role shop manager
+ *     description: Requires authenticated account with role admin, manager or staff
  *     security:
  *       - BearerAuth: []
  *     parameters:
@@ -262,7 +262,7 @@ router.get('/:id', promotionController.getPromotionById);
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden (not shop manager)
+ *         description: Forbidden (not admin, manager or staff)
  *       404:
  *         description: Promotion not found
  *       500:
@@ -275,7 +275,7 @@ router.get('/:id', promotionController.getPromotionById);
  *   delete:
  *     summary: Delete promotion
  *     tags: [Promotions]
- *     description: Requires authenticated account with role shop manager
+ *     description: Requires authenticated account with role admin, manager or staff
  *     security:
  *       - BearerAuth: []
  *     parameters:
@@ -303,14 +303,14 @@ router.get('/:id', promotionController.getPromotionById);
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden (not shop manager)
+ *         description: Forbidden (not admin, manager or staff)
  *       404:
  *         description: Promotion not found
  *       500:
  *         description: Internal server error
  */
-router.post('/', authenticate, authorize('shop manager'), promotionController.createPromotion);
-router.put('/:id', authenticate, authorize('shop manager'), promotionController.updatePromotion);
-router.delete('/:id', authenticate, authorize('shop manager'), promotionController.deletePromotion);
+router.post('/', authenticate, authorize('admin', 'manager', 'staff'), promotionController.createPromotion);
+router.put('/:id', authenticate, authorize('admin', 'manager', 'staff'), promotionController.updatePromotion);
+router.delete('/:id', authenticate, authorize('admin', 'manager', 'staff'), promotionController.deletePromotion);
 
 module.exports = router;
