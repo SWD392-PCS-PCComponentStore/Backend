@@ -20,6 +20,7 @@ const ORDER_STATUS_WAITING_APPROVAL = "Chờ duyệt";
 const ORDER_STATUS_INSTALLMENT = "Đang trả góp";
 const ORDER_STATUS_WAITING_RECEIVE = "Chờ nhận hàng";
 const ORDER_STATUS_COMPLETED = "Hoàn Thành";
+const ORDER_STATUS_PROCESSING = "Đang xử lý";
 const PAYMENT_STATUS_PENDING_PAYMENT = "Chờ thanh toán";
 const PAYMENT_STATUS_WAITING_APPROVAL = "Chờ duyệt";
 const PAYMENT_STATUS_INSTALLMENT = "Đang trả góp";
@@ -712,13 +713,13 @@ exports.adminCompleteOrderByOrderId = async (orderId) => {
     }
 
     await PaymentModel.updatePaymentStatus(payment.payment_id, "Đã thanh toán");
-    await PaymentModel.updateOrderStatus(payment.order_id, ORDER_STATUS_COMPLETED);
+    await PaymentModel.updateOrderStatus(payment.order_id, ORDER_STATUS_PROCESSING);
 
     return {
         payment_id: Number(payment.payment_id),
         order_id: Number(payment.order_id),
         payment_status: "Đã thanh toán",
-        order_status: ORDER_STATUS_COMPLETED
+        order_status: ORDER_STATUS_PROCESSING
     };
 };
 
