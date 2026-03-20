@@ -73,6 +73,14 @@ exports.updateOrder = async (id, orderData) => {
 };
 
 exports.deleteOrder = async (id) => {
-    await Order.delete(id);
+    const deleteResult = await Order.delete(id);
+    const deletedCount = Array.isArray(deleteResult?.rowsAffected)
+        ? Number(deleteResult.rowsAffected[0] || 0)
+        : 0;
+
+    if (deletedCount === 0) {
+        throw new Error('Order not found');
+    }
+
     return { message: 'Order deleted successfully' };
 };

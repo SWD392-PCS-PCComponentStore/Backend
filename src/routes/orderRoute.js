@@ -427,6 +427,6 @@ router.put('/:id', authenticate, orderController.updateOrder);
  *       500:
  *         description: Internal server error
  */
-router.delete('/:id', authenticate, authorize('admin'), orderController.deleteOrder);
+router.delete('/:id', authenticate, authorize('admin', 'manager', 'staff'), orderController.deleteOrder);
 
 module.exports = router;
