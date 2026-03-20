@@ -6,15 +6,15 @@ const aiController = require("../controllers/aiController");
  * @swagger
  * /api/ai/test:
  *   get:
- *     summary: Test Gemini API connection
- *     description: Test if Gemini API is properly configured and connected
+ *     summary: Test Groq API connection
+ *     description: Test if Groq API is properly configured and connected
  *     tags:
  *       - AI
  *     responses:
  *       200:
- *         description: Gemini API is connected successfully
+ *         description: Groq API is connected successfully
  *       500:
- *         description: Failed to connect to Gemini API
+ *         description: Failed to connect to Groq API
  */
 router.get("/test", aiController.testAIConnection);
 

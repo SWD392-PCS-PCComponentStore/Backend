@@ -68,14 +68,14 @@ exports.deleteJsonSpecs = async (productId) => {
  * Get all products with specs in a category
  */
 exports.getAllSpecsByCategory = async (categoryId) => {
-  const result = await SpecificationV2.getAllSpecsByCategory(categoryId);
-  
-  return result.recordset.map(record => ({
-    product_id: record.product_id,
-    name: record.name,
-    price: record.price,
+  const records = await SpecificationV2.getAllSpecsByCategory(categoryId);
+
+  return records.map((record) => ({
+    product_id: record.PRODUCT_ID,
+    name: record.PRODUCT_NAME,
+    price: record.PRODUCT_PRICE,
     brand: record.brand,
-    specs: record.specs_json ? JSON.parse(record.specs_json) : null
+    specs: record.specs_json ? JSON.parse(record.specs_json) : null,
   }));
 };
 
