@@ -163,45 +163,52 @@ class SpecificationV2 {
       return pivotRows(result.recordset);
     }
 
-    const ALIAS_MAP = {
-      cpu: "CPU",
-      gpu: "VGA",
-      vga: "VGA",
-      mainboard: "Mainboard",
-      motherboard: "Mainboard",
-      ram: "RAM",
-      memory: "RAM",
-      storage: "Storage",
-      ssd: "Storage",
-      hdd: "Storage",
-      psu: "PSU",
-      power: "PSU",
-      cooler: "Cooler",
-      cooler_cpu: "Cooler",
-      case: "Case",
-      chassis: "Case",
+    // Each key maps to an array of possible category names.
+    // Handles both local (English) and production (Vietnamese) naming.
+    const NAME_MAP = {
+      cpu:         ["CPU"],
+      gpu:         ["VGA"],
+      vga:         ["VGA"],
+      mainboard:   ["Mainboard"],
+      motherboard: ["Mainboard"],
+      ram:         ["RAM"],
+      memory:      ["RAM"],
+      storage:     ["Storage", "Ổ cứng SSD", "Ổ cứng HDD"],
+      ssd:         ["Storage", "Ổ cứng SSD"],
+      hdd:         ["Storage", "Ổ cứng HDD"],
+      psu:         ["PSU", "PSD"],
+      power:       ["PSU", "PSD"],
+      cooler:      ["Cooler", "Tản nhiệt CPU"],
+      cooler_cpu:  ["Cooler", "Tản nhiệt CPU"],
+      case:        ["Case", "Vỏ máy tính"],
+      chassis:     ["Case", "Vỏ máy tính"],
     };
 
-    const normalizedName =
-      ALIAS_MAP[String(categoryIdOrName).toLowerCase()] || categoryIdOrName;
+    const key = String(categoryIdOrName).toLowerCase();
+    const possibleNames = NAME_MAP[key] || [String(categoryIdOrName)];
 
-    const result = await conn
-      .request()
-      .input("cat_name", sql.NVarChar(255), normalizedName)
-      .query(`
-        SELECT p.product_id  AS PRODUCT_ID,
-               p.name        AS PRODUCT_NAME,
-               p.price       AS PRODUCT_PRICE,
-               p.category_id,
-               p.brand,
-               ps.spec_name,
-               ps.spec_value
-        FROM dbo.PRODUCT p
-        INNER JOIN dbo.CATEGORY c  ON p.category_id = c.category_id
-        INNER JOIN dbo.PRODUCT_SPEC ps ON p.product_id = ps.product_id
-        WHERE c.name = @cat_name
-        ORDER BY p.product_id
-      `);
+    const request = conn.request();
+    const placeholders = possibleNames
+      .map((name, i) => {
+        request.input(`cat_${i}`, sql.NVarChar(255), name);
+        return `@cat_${i}`;
+      })
+      .join(", ");
+
+    const result = await request.query(`
+      SELECT p.product_id  AS PRODUCT_ID,
+             p.name        AS PRODUCT_NAME,
+             p.price       AS PRODUCT_PRICE,
+             p.category_id,
+             p.brand,
+             ps.spec_name,
+             ps.spec_value
+      FROM dbo.PRODUCT p
+      INNER JOIN dbo.CATEGORY c  ON p.category_id = c.category_id
+      INNER JOIN dbo.PRODUCT_SPEC ps ON p.product_id = ps.product_id
+      WHERE c.name IN (${placeholders})
+      ORDER BY p.product_id
+    `);
 
     return pivotRows(result.recordset);
   }
