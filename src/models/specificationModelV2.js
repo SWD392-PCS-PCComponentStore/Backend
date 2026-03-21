@@ -1,169 +1,238 @@
 const { sql, pool } = require("../config/db");
 
+/**
+ * Coerce string value from PRODUCT_SPEC to proper JS type
+ * e.g. "24" → 24, "true" → true, '["AM5","LGA1700"]' → array
+ */
+function coerceValue(value) {
+  if (value === null || value === undefined) return null;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (value !== "" && !isNaN(value)) return Number(value);
+  try { return JSON.parse(value); } catch { return value; }
+}
+
+/**
+ * Pivot flat PRODUCT_SPEC rows (one row per spec) into array of product objects.
+ * Returns same shape as before: [{ PRODUCT_ID, PRODUCT_NAME, PRODUCT_PRICE, category_id, brand, specs_json }]
+ * autoBuildService reads specs_json and parses it — no changes needed there.
+ */
+function pivotRows(rows) {
+  const map = new Map();
+  for (const row of rows) {
+    if (!map.has(row.PRODUCT_ID)) {
+      map.set(row.PRODUCT_ID, {
+        PRODUCT_ID: row.PRODUCT_ID,
+        PRODUCT_NAME: row.PRODUCT_NAME,
+        PRODUCT_PRICE: row.PRODUCT_PRICE,
+        category_id: row.category_id,
+        brand: row.brand,
+        _specs: {},
+      });
+    }
+    if (row.spec_name) {
+      map.get(row.PRODUCT_ID)._specs[row.spec_name] = coerceValue(row.spec_value);
+    }
+  }
+
+  const result = [];
+  for (const p of map.values()) {
+    const hasSpecs = Object.keys(p._specs).length > 0;
+    if (!hasSpecs) continue;
+    const { _specs, ...rest } = p;
+    result.push({ ...rest, specs_json: JSON.stringify(_specs) });
+  }
+  return result;
+}
+
 class SpecificationV2 {
   /**
-   * Create JSON specs for a product
-   * @param {number} productId
-   * @param {string} category - Category name (CPU, GPU, MAINBOARD, etc.)
-   * @param {object} specs - Structured specs object
-   * @returns {Promise<object>} - Created spec record
+   * Upsert specs for a product — DELETE existing rows then INSERT new key-value rows
+   * into PRODUCT_SPEC. Does NOT touch specs_json column (no longer used).
    */
-  static async createJsonSpecs(productId, category, specs) {
+  static async createJsonSpecs(productId, _category, specs) {
     const conn = await pool;
-    const specsJson = JSON.stringify(specs);
 
-    return await conn
+    // Remove old specs for this product
+    await conn
       .request()
       .input("product_id", sql.Int, productId)
-      .input("specs_json", sql.NVarChar(sql.MAX), specsJson)
-      .query(`
-        UPDATE dbo.PRODUCT 
-        SET specs_json = @specs_json 
-        WHERE product_id = @product_id;
-        
-        SELECT product_id, name, price, category_id, specs_json 
-        FROM dbo.PRODUCT 
-        WHERE product_id = @product_id
-      `);
+      .query("DELETE FROM dbo.PRODUCT_SPEC WHERE product_id = @product_id");
+
+    // Insert each field as a separate row
+    for (const [specName, specValue] of Object.entries(specs)) {
+      const valueStr =
+        Array.isArray(specValue) || (typeof specValue === "object" && specValue !== null)
+          ? JSON.stringify(specValue)
+          : String(specValue);
+
+      await conn
+        .request()
+        .input("product_id", sql.Int, productId)
+        .input("spec_name", sql.NVarChar(255), specName)
+        .input("spec_value", sql.NVarChar(sql.MAX), valueStr)
+        .query(
+          "INSERT INTO dbo.PRODUCT_SPEC (product_id, spec_name, spec_value) VALUES (@product_id, @spec_name, @spec_value)"
+        );
+    }
+
+    // Return product info in shape expected by specificationServiceV2
+    const result = await conn
+      .request()
+      .input("product_id", sql.Int, productId)
+      .query(
+        "SELECT product_id, name, price, category_id FROM dbo.PRODUCT WHERE product_id = @product_id"
+      );
+
+    return {
+      recordset: [{ ...result.recordset[0], specs_json: JSON.stringify(specs) }],
+    };
   }
 
   /**
-   * Get JSON specs for a product
+   * Get specs for a product — reads from PRODUCT_SPEC and returns as specs_json string
    */
   static async getJsonSpecsByProductId(productId) {
     const conn = await pool;
-    return await conn
+    const result = await conn
       .request()
       .input("product_id", sql.Int, productId)
-      .query(`
-        SELECT product_id, specs_json 
-        FROM dbo.PRODUCT 
-        WHERE product_id = @product_id
-      `);
+      .query(
+        "SELECT spec_name, spec_value FROM dbo.PRODUCT_SPEC WHERE product_id = @product_id"
+      );
+
+    const specs = {};
+    for (const row of result.recordset) {
+      specs[row.spec_name] = coerceValue(row.spec_value);
+    }
+
+    return {
+      recordset: [
+        {
+          product_id: productId,
+          specs_json: Object.keys(specs).length > 0 ? JSON.stringify(specs) : null,
+        },
+      ],
+    };
   }
 
   /**
-   * Update JSON specs for a product
+   * Update specs — same as create (upsert)
    */
   static async updateJsonSpecs(productId, specs) {
-    const conn = await pool;
-    const specsJson = JSON.stringify(specs);
-
-    return await conn
-      .request()
-      .input("product_id", sql.Int, productId)
-      .input("specs_json", sql.NVarChar(sql.MAX), specsJson)
-      .query(`
-        UPDATE dbo.PRODUCT 
-        SET specs_json = @specs_json 
-        WHERE product_id = @product_id;
-        
-        SELECT product_id, name, price, category_id, specs_json 
-        FROM dbo.PRODUCT 
-        WHERE product_id = @product_id
-      `);
+    return this.createJsonSpecs(productId, null, specs);
   }
 
   /**
-   * Delete JSON specs for a product
+   * Delete all specs for a product from PRODUCT_SPEC
    */
   static async deleteJsonSpecs(productId) {
     const conn = await pool;
-    return await conn
+    await conn
       .request()
       .input("product_id", sql.Int, productId)
-      .query(`
-        UPDATE dbo.PRODUCT 
-        SET specs_json = NULL 
-        WHERE product_id = @product_id
-      `);
+      .query("DELETE FROM dbo.PRODUCT_SPEC WHERE product_id = @product_id");
   }
 
   /**
-   * Get all products with their JSON specs by category.
+   * Get all products with their specs by category.
    * Accepts either a numeric category_id OR a category name string (e.g. "cpu", "VGA").
-   * Name matching is case-insensitive and also handles aliases:
-   *   "gpu" → "VGA", "cooler_cpu" → "Cooler", "case" → "Case"
+   * Reads from PRODUCT_SPEC (not specs_json column).
+   * Returns: [{ PRODUCT_ID, PRODUCT_NAME, PRODUCT_PRICE, category_id, brand, specs_json }]
    */
   static async getAllSpecsByCategory(categoryIdOrName) {
     const conn = await pool;
 
-    // If it's a number (or numeric string), query by category_id directly
     if (!isNaN(categoryIdOrName) && categoryIdOrName !== "") {
-      return (
-        await conn
-          .request()
-          .input("category_id", sql.Int, parseInt(categoryIdOrName))
-          .query(`
-            SELECT p.product_id AS PRODUCT_ID, p.name AS PRODUCT_NAME, p.price AS PRODUCT_PRICE,
-                   p.category_id, p.brand, p.specs_json
-            FROM dbo.PRODUCT p
-            WHERE p.category_id = @category_id AND p.specs_json IS NOT NULL
-            ORDER BY p.product_id
-          `)
-      ).recordset;
+      const result = await conn
+        .request()
+        .input("category_id", sql.Int, parseInt(categoryIdOrName))
+        .query(`
+          SELECT p.product_id  AS PRODUCT_ID,
+                 p.name        AS PRODUCT_NAME,
+                 p.price       AS PRODUCT_PRICE,
+                 p.category_id,
+                 p.brand,
+                 ps.spec_name,
+                 ps.spec_value
+          FROM dbo.PRODUCT p
+          INNER JOIN dbo.PRODUCT_SPEC ps ON p.product_id = ps.product_id
+          WHERE p.category_id = @category_id
+          ORDER BY p.product_id
+        `);
+      return pivotRows(result.recordset);
     }
 
-    // Map common aliases to canonical category names
-    const ALIAS_MAP = {
-      cpu: "CPU",
-      gpu: "VGA",
-      vga: "VGA",
-      mainboard: "Mainboard",
-      motherboard: "Mainboard",
-      ram: "RAM",
-      memory: "RAM",
-      storage: "Storage",
-      ssd: "Storage",
-      hdd: "Storage",
-      psu: "PSU",
-      power: "PSU",
-      cooler: "Cooler",
-      cooler_cpu: "Cooler",
-      case: "Case",
-      chassis: "Case",
+    // Each key maps to an array of possible category names.
+    // Handles both local (English) and production (Vietnamese) naming.
+    const NAME_MAP = {
+      cpu:         ["CPU"],
+      gpu:         ["VGA"],
+      vga:         ["VGA"],
+      mainboard:   ["Mainboard"],
+      motherboard: ["Mainboard"],
+      ram:         ["RAM"],
+      memory:      ["RAM"],
+      storage:     ["Storage", "Ổ cứng SSD", "Ổ cứng HDD"],
+      ssd:         ["Storage", "Ổ cứng SSD"],
+      hdd:         ["Storage", "Ổ cứng HDD"],
+      psu:         ["PSU", "PSD"],
+      power:       ["PSU", "PSD"],
+      cooler:      ["Cooler", "Tản nhiệt CPU"],
+      cooler_cpu:  ["Cooler", "Tản nhiệt CPU"],
+      case:        ["Case", "Vỏ máy tính"],
+      chassis:     ["Case", "Vỏ máy tính"],
     };
 
-    const normalizedName = ALIAS_MAP[String(categoryIdOrName).toLowerCase()] || categoryIdOrName;
+    const key = String(categoryIdOrName).toLowerCase();
+    const possibleNames = NAME_MAP[key] || [String(categoryIdOrName)];
 
-    const result = await conn
-      .request()
-      .input("cat_name", sql.NVarChar(255), normalizedName)
-      .query(`
-        SELECT p.product_id AS PRODUCT_ID, p.name AS PRODUCT_NAME, p.price AS PRODUCT_PRICE,
-               p.category_id, p.brand, p.specs_json
-        FROM dbo.PRODUCT p
-        INNER JOIN dbo.CATEGORY c ON p.category_id = c.category_id
-        WHERE c.name = @cat_name AND p.specs_json IS NOT NULL
-        ORDER BY p.product_id
-      `);
+    const request = conn.request();
+    const placeholders = possibleNames
+      .map((name, i) => {
+        request.input(`cat_${i}`, sql.NVarChar(255), name);
+        return `@cat_${i}`;
+      })
+      .join(", ");
 
-    return result.recordset;
+    const result = await request.query(`
+      SELECT p.product_id  AS PRODUCT_ID,
+             p.name        AS PRODUCT_NAME,
+             p.price       AS PRODUCT_PRICE,
+             p.category_id,
+             p.brand,
+             ps.spec_name,
+             ps.spec_value
+      FROM dbo.PRODUCT p
+      INNER JOIN dbo.CATEGORY c  ON p.category_id = c.category_id
+      INNER JOIN dbo.PRODUCT_SPEC ps ON p.product_id = ps.product_id
+      WHERE c.name IN (${placeholders})
+      ORDER BY p.product_id
+    `);
+
+    return pivotRows(result.recordset);
   }
 
   /**
-   * Search products by JSON spec value (advanced)
-   * Example: Find all CPUs with cores >= 16
+   * Search products by spec value
    */
   static async searchBySpec(categoryId, specValue) {
-    // This is for simple string matching in specs_json
-    // For complex queries, consider using JSON_VALUE or JSON_QUERY in MSSQL
     const conn = await pool;
     return await conn
       .request()
       .input("category_id", sql.Int, categoryId)
       .input("spec_value", sql.NVarChar(255), `%${specValue}%`)
       .query(`
-        SELECT p.product_id, p.name, p.price, p.specs_json
+        SELECT DISTINCT p.product_id, p.name, p.price
         FROM dbo.PRODUCT p
-        WHERE p.category_id = @category_id 
-        AND p.specs_json LIKE @spec_value
+        INNER JOIN dbo.PRODUCT_SPEC ps ON p.product_id = ps.product_id
+        WHERE p.category_id = @category_id
+          AND ps.spec_value LIKE @spec_value
         ORDER BY p.price ASC
       `);
   }
 
-  // ==================== BACKWARD COMPATIBILITY ====================
-  // Keep old PRODUCT_SPEC methods for gradual migration
+  // ==================== BACKWARD COMPATIBILITY (PRODUCT_SPEC - unchanged) ====================
 
   static async create(specData) {
     const conn = await pool;
@@ -173,8 +242,8 @@ class SpecificationV2 {
       .input("spec_name", sql.NVarChar(255), specData.spec_name)
       .input("spec_value", sql.NVarChar(255), specData.spec_value)
       .query(`
-        INSERT INTO dbo.PRODUCT_SPEC (product_id, spec_name, spec_value) 
-        OUTPUT INSERTED.* 
+        INSERT INTO dbo.PRODUCT_SPEC (product_id, spec_name, spec_value)
+        OUTPUT INSERTED.*
         VALUES (@product_id, @spec_name, @spec_value)
       `);
   }
@@ -184,9 +253,7 @@ class SpecificationV2 {
     return await conn
       .request()
       .input("product_id", sql.Int, productId)
-      .query(`
-        SELECT * FROM dbo.PRODUCT_SPEC WHERE product_id = @product_id
-      `);
+      .query("SELECT * FROM dbo.PRODUCT_SPEC WHERE product_id = @product_id");
   }
 
   static async getById(specId) {
@@ -194,9 +261,7 @@ class SpecificationV2 {
     return await conn
       .request()
       .input("spec_id", sql.Int, specId)
-      .query(`
-        SELECT * FROM dbo.PRODUCT_SPEC WHERE spec_id = @spec_id
-      `);
+      .query("SELECT * FROM dbo.PRODUCT_SPEC WHERE spec_id = @spec_id");
   }
 
   static async update(specId, specData) {
@@ -208,7 +273,7 @@ class SpecificationV2 {
       .input("spec_value", sql.NVarChar(255), specData.spec_value)
       .query(`
         UPDATE dbo.PRODUCT_SPEC
-        SET spec_name = @spec_name,
+        SET spec_name  = @spec_name,
             spec_value = @spec_value
         WHERE spec_id = @spec_id
       `);
@@ -219,9 +284,7 @@ class SpecificationV2 {
     return await conn
       .request()
       .input("spec_id", sql.Int, specId)
-      .query(`
-        DELETE FROM dbo.PRODUCT_SPEC WHERE spec_id = @spec_id
-      `);
+      .query("DELETE FROM dbo.PRODUCT_SPEC WHERE spec_id = @spec_id");
   }
 }
 

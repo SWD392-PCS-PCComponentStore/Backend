@@ -1,7 +1,7 @@
 const aiService = require("../services/aiService");
 
 /**
- * Test Gemini API connection
+ * Test Groq API connection
  * GET /api/ai/test
  */
 const testAIConnection = async (req, res) => {
@@ -11,13 +11,13 @@ const testAIConnection = async (req, res) => {
     if (result.success) {
       return res.status(200).json({
         success: true,
-        message: "✅ Gemini API is connected successfully",
+        message: "✅ Groq API is connected successfully",
         data: result,
       });
     } else {
       return res.status(500).json({
         success: false,
-        message: "❌ Failed to connect to Gemini API",
+        message: "❌ Failed to connect to Groq API",
         error: result.error,
       });
     }

@@ -1,604 +1,493 @@
-# PC Component Store - Tài Liệu Tính Năng Build PC bằng AI
+# Tài Liệu Tính Năng Build PC Bằng AI
 
 ## Mục Lục
-1. [Tổng Quan Dự Án](#tổng-quan-dự-án)
-2. [Kiến Trúc Hệ Thống](#kiến-trúc-hệ-thống)
-3. [Cơ Sở Dữ Liệu](#cơ-sở-dữ-liệu)
-4. [Cấu Trúc Specs Linh Kiện](#cấu-trúc-specs-linh-kiện)
-5. [Hướng Dẫn Thêm Sản Phẩm Mới](#hướng-dẫn-thêm-sản-phẩm-mới)
-6. [Quy Tắc Kiểm Tra Tương Thích](#quy-tắc-kiểm-tra-tương-thích)
-7. [API Phase 1: Sản Phẩm & Xác Thực](#api-phase-1-sản-phẩm--xác-thực)
-8. [API Phase 2: Specs & Kiểm Tra Tương Thích](#api-phase-2-specs--kiểm-tra-tương-thích)
-9. [API Phase 3: AI Build PC](#api-phase-3-ai-build-pc)
-10. [Luồng Hoạt Động Chi Tiết: POST /api/ai/build](#luồng-hoạt-động-chi-tiết-post-apiaibuild)
-11. [Dịch Vụ AI & Chế Độ Mock](#dịch-vụ-ai--chế-độ-mock)
-12. [Thuật Toán Auto-Build](#thuật-toán-auto-build)
-13. [Các Trường Hợp Test & Ví Dụ](#các-trường-hợp-test--ví-dụ)
-14. [Cài Đặt & Chạy Dự Án](#cài-đặt--chạy-dự-án)
-15. [Cấu Hình Môi Trường](#cấu-hình-môi-trường)
+1. [Tổng Quan](#1-tổng-quan)
+2. [Kiến Trúc Hệ Thống](#2-kiến-trúc-hệ-thống)
+3. [Cơ Sở Dữ Liệu](#3-cơ-sở-dữ-liệu)
+4. [Cấu Trúc Specs Từng Loại Linh Kiện](#4-cấu-trúc-specs-từng-loại-linh-kiện)
+5. [Hướng Dẫn Thêm Sản Phẩm Mới](#5-hướng-dẫn-thêm-sản-phẩm-mới)
+6. [Quy Tắc Tương Thích](#6-quy-tắc-tương-thích)
+7. [Các Loại Build & Phân Bổ Ngân Sách](#7-các-loại-build--phân-bổ-ngân-sách)
+8. [API Specs & Tương Thích](#8-api-specs--tương-thích)
+9. [API AI Build PC](#9-api-ai-build-pc)
+10. [Luồng Hoạt Động: POST /api/ai/build](#10-luồng-hoạt-động-post-apiaibuild)
+11. [Dịch Vụ AI & Chế Độ Mock](#11-dịch-vụ-ai--chế-độ-mock)
+12. [Cài Đặt & Chạy Dự Án](#12-cài-đặt--chạy-dự-án)
+13. [Test Nhanh](#13-test-nhanh)
 
 ---
 
-## Tổng Quan Dự Án
+## 1. Tổng Quan
 
-Backend của cửa hàng linh kiện PC - REST API được xây dựng bằng:
-- **Runtime**: Node.js + Express.js (cổng 5000)
-- **Cơ sở dữ liệu**: Microsoft SQL Server (database `PCComponentStore`)
-- **AI**: Groq API (`llama-3.3-70b-versatile`) — miễn phí, tốc độ cao, với chế độ mock đầy đủ khi không có API key
-- **Xác thực**: JWT (JSON Web Token)
-- **Tài liệu API**: Swagger UI tại `/api-docs`
+Backend của cửa hàng linh kiện PC — REST API xây dựng bằng:
 
-### Tóm Tắt Các Tính Năng
-| Phase | Tính Năng |
-|-------|-----------|
-| Phase 1 | CRUD sản phẩm, quản lý danh mục, đăng nhập/đăng ký, đơn hàng, giỏ hàng, upload ảnh Cloudinary |
-| Phase 2 | Specs JSON cho từng sản phẩm (`specs_json`), kiểm tra tương thích 7 quy tắc, tính điểm tương thích |
-| Phase 3 | Build PC bằng AI (Groq Llama 3.3 + chế độ mock), engine tự động chọn linh kiện, điều phối toàn bộ quy trình |
+| Thành phần | Chi tiết |
+|---|---|
+| Runtime | Node.js + Express.js, cổng **5000** |
+| Database | Microsoft SQL Server — database `PCComponentStore` |
+| AI | **Groq API** (`llama-3.3-70b-versatile`) — miễn phí, 14.400 req/ngày |
+| Mock AI | Bật `USE_MOCK_AI=true` để chạy không cần API key |
+| Auth | JWT (JSON Web Token) |
+| API Docs | Swagger UI tại `http://localhost:5000/api-docs` |
 
 ---
 
-## Kiến Trúc Hệ Thống
+## 2. Kiến Trúc Hệ Thống
 
 ```
-Yêu cầu từ Client
-       │
-       ▼
-┌─────────────────────────────────────────────────┐
-│               Express Router                    │
-│  /api/auth  /api/products  /api/ai  /api/compat │
-└─────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────┐
-│               Controllers                       │
-│  aiController  compatibilityController  ...     │
-└─────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────┐
-│                 Services                        │
-│  aiService ──► autoBuildService                 │
-│                    │                            │
-│              compatibilityService               │
-└─────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────┐
-│                  Models                         │
-│  specificationModelV2  productModel  ...        │
-└─────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────┐
-│           MSSQL Server Database                 │
-│  PRODUCT (specs_json)  CATEGORY  ORDER  ...     │
-└─────────────────────────────────────────────────┘
+Client Request
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│            Express Router               │
+│  /api/ai  /api/specifications           │
+│  /api/compatibility  /api/products ...  │
+└─────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│             Controllers                 │
+│  aiController                           │
+│  specificationControllerV2              │
+│  compatibilityController                │
+└─────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│              Services                   │
+│  aiService ──► autoBuildService         │
+│                    │                    │
+│            compatibilityService         │
+│                                         │
+│  specificationServiceV2                 │
+└─────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│               Models                   │
+│  specificationModelV2                   │
+│  productModel  ...                      │
+└─────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│          MSSQL Server                   │
+│  PRODUCT  PRODUCT_SPEC  CATEGORY  ...   │
+└─────────────────────────────────────────┘
 ```
 
-### Luồng Điều Phối AI
+### Luồng AI Build PC
 
 ```
 POST /api/ai/build  { query: "Build PC gaming 25 triệu" }
-        │
-        ▼
-  aiService.orchestrateBuildPC(query)
-        │
-        ├─► analyzeRequest(query)
-        │       │ USE_MOCK_AI=true → mockAnalyzeRequest()  (phân tích bằng regex)
-        │       │ USE_MOCK_AI=false → Gọi Groq API (llama-3.3-70b-versatile)
-        │       └─ trả về: { intent, buildType, budget, cpuPreference, gpuPreference, ... }
-        │
-        ├─► AutoBuildService.autoBuild(budget, preferences)
-        │       │
-        │       ├─ Tính phân bổ ngân sách theo mục đích
-        │       ├─ Lấy tất cả sản phẩm từng danh mục từ DB
-        │       ├─ Chọn linh kiện tốt nhất (có kiểm tra tương thích)
-        │       └─ Chạy CompatibilityService.checkBuildCompatibility()
-        │
-        └─► generateBuildExplanation(query, build)
-                │ USE_MOCK_AI=true → mockGenerateExplanation()
-                │ USE_MOCK_AI=false → Gọi Groq (giải thích tiếng Việt)
-                └─ trả về: chuỗi giải thích
+         │
+         ▼
+   aiController.buildPC()
+         │
+         ▼
+   aiService.orchestrateBuildPC()
+    ├── 1. analyzeRequest()       ← Groq phân tích query → budget, buildType
+    ├── 2. autoBuildService.autoBuild()
+    │        ├── Tính budget allocation theo buildType
+    │        ├── Lấy sản phẩm từ PRODUCT_SPEC (8 loại song song)
+    │        ├── Chọn linh kiện tốt nhất trong ngân sách
+    │        └── Kiểm tra tương thích 7 quy tắc
+    └── 3. generateBuildExplanation()  ← Groq viết giải thích tiếng Việt
 ```
 
 ---
 
-## Cơ Sở Dữ Liệu
+## 3. Cơ Sở Dữ Liệu
 
-### Các Bảng Chính
+### Bảng liên quan đến AI Build
 
-**PRODUCT** (Sản phẩm)
+#### PRODUCT
 ```sql
-product_id    INT PK AUTO_INCREMENT
-name          NVARCHAR(255)
-price         DECIMAL(18,2)
-category_id   INT FK → CATEGORY
-brand         NVARCHAR(100)
-specs_json    NVARCHAR(MAX)   -- Chuỗi JSON chứa thông số kỹ thuật có cấu trúc
-image_url     NVARCHAR(500)
-stock         INT
+product_id      INT           -- PK
+name            NVARCHAR(255)
+description     NVARCHAR(MAX)
+price           DECIMAL(18,2) -- Đơn vị: VNĐ
+stock_quantity  INT
+category_id     INT           -- FK → CATEGORY
+brand           NVARCHAR(100)
+status          NVARCHAR(50)
+image_url       NVARCHAR(500)
 ```
 
-**CATEGORY** (Danh mục)
+#### PRODUCT_SPEC ← **Bảng chứa thông số kỹ thuật AI đọc**
 ```sql
-category_id   INT PK
-name          NVARCHAR(100)   -- "CPU", "VGA", "Mainboard", "RAM", "Storage", "PSU", "Cooler", "Case"
+spec_id     INT           -- PK, auto increment
+product_id  INT           -- FK → PRODUCT
+spec_name   NVARCHAR(255) -- Tên thông số (vd: "socket", "cores", "tdp")
+spec_value  NVARCHAR(MAX) -- Giá trị (vd: "LGA1700", "14", "125")
 ```
 
-**CART, ORDER, ORDER_ITEM** — các bảng thương mại điện tử tiêu chuẩn
+> **Lưu ý quan trọng:**
+> - Tất cả `spec_value` được lưu dạng **string** (kể cả số và boolean)
+> - Code tự động convert khi đọc: `"14"` → `14`, `"true"` → `true`, `'["LGA1700","AM5"]'` → array
+> - Array lưu dạng JSON string: `'["LGA1700","AM5","AM4"]'`
 
-### Danh Mục ID (Môi Trường Production)
-| category_id | Tên Danh Mục |
-|-------------|--------------|
-| 1 | CPU |
-| 2 | VGA (GPU) |
-| 3 | Mainboard |
-| 5 | RAM |
-| 6 | Storage (Ổ cứng) |
-| 7 | PSU (Nguồn) |
-| 8 | Cooler (Tản nhiệt) |
-| 9 | Case (Vỏ case) |
-
----
-
-## Cấu Trúc Specs Linh Kiện
-
-Mỗi linh kiện lưu thông số kỹ thuật dưới dạng chuỗi JSON trong cột `PRODUCT.specs_json`.
-Schema được định nghĩa trong [`src/utils/specSchemas.js`](src/utils/specSchemas.js).
-
-> **Quan trọng:** Các trường được đánh dấu `★` là **bắt buộc** — thiếu trường này sản phẩm sẽ **không được chọn** trong quá trình Auto-Build và kiểm tra tương thích sẽ thất bại.
-
----
-
-### CPU (category: "CPU")
-| Trường | Kiểu | Bắt buộc | Dùng bởi | Mô tả |
-|--------|------|----------|----------|-------|
-| `socket` | string | ★ | Auto-Build, Tương thích | LGA1700, AM5, AM4 |
-| `cores` | number | ★ | Auto-Build (chọn CPU) | Số nhân vật lý |
-| `threads` | number | ★ | — | Số luồng |
-| `tdp` | number | ★ | PSU calc, Cooler fit | Công suất nhiệt (W) |
-| `generation` | string | ★ | — | "14th Gen Intel", "Zen 4" |
-| `iGPU` | boolean | — | — | Có đồ họa tích hợp không |
-| `base_clock` | number | — | — | Xung nhịp cơ bản (GHz) |
-| `boost_clock` | number | — | — | Xung nhịp tối đa (GHz) |
-| `cache_mb` | number | — | — | Cache L3 (MB) |
-| `series` | string | — | — | "Core i5", "Ryzen 7" |
-
-```json
-{
-  "socket": "LGA1700",
-  "cores": 14,
-  "threads": 20,
-  "tdp": 125,
-  "generation": "13th Gen Intel",
-  "iGPU": false,
-  "base_clock": 3.5,
-  "boost_clock": 5.1,
-  "cache_mb": 24,
-  "series": "Core i5"
-}
+#### CATEGORY
+```sql
+category_id  INT           -- PK
+name         NVARCHAR(255) -- CPU, VGA, Mainboard, RAM, Storage, PSU, Cooler, Case
+description  NVARCHAR(MAX)
 ```
 
----
+### Danh Mục Chuẩn Cho AI Build
 
-### Mainboard (category: "Mainboard")
-| Trường | Kiểu | Bắt buộc | Dùng bởi | Mô tả |
-|--------|------|----------|----------|-------|
-| `socket` | string | ★ | Tương thích CPU | LGA1700, AM5, AM4 |
-| `chipset` | string | ★ | — | H610, B760, Z790, B650, X670 |
-| `ram_type` | string | ★ | Tương thích RAM | "DDR4" hoặc "DDR5" |
-| `form_factor` | string | ★ | — | "ATX", "mATX", "ITX" |
-| `ram_slots` | number | — | — | 2 hoặc 4 |
-| `m2_slots` | number | — | — | Số khe M.2 |
-| `pcie_gen` | number | — | — | 4 hoặc 5 |
-| `usb_ports` | number | — | — | Tổng số cổng USB |
-
-```json
-{
-  "socket": "LGA1700",
-  "chipset": "B760",
-  "ram_type": "DDR4",
-  "form_factor": "mATX",
-  "ram_slots": 2,
-  "m2_slots": 1,
-  "pcie_gen": 4,
-  "usb_ports": 6
-}
-```
+| category_id | name | Ghi chú |
+|---|---|---|
+| 1 | CPU | Bộ vi xử lý |
+| 2 | VGA | Card đồ họa |
+| 3 | Mainboard | Bo mạch chủ |
+| 4 | PC Bộ | Máy tính lắp sẵn (AI không dùng) |
+| 5 | RAM | Bộ nhớ trong |
+| 6 | Storage | Ổ cứng / SSD |
+| 7 | PSU | Nguồn máy tính |
+| 8 | Cooler | Tản nhiệt CPU |
+| 9 | Case | Vỏ máy tính |
 
 ---
 
-### VGA / GPU (category: "VGA")
-| Trường | Kiểu | Bắt buộc | Dùng bởi | Mô tả |
-|--------|------|----------|----------|-------|
-| `memory_gb` | number | ★ | Auto-Build (chọn GPU) | VRAM (GB): 4, 8, 12, 16, 24 |
-| `memory_type` | string | ★ | — | GDDR6, GDDR6X |
-| `length_mm` | number | ★ | Tương thích Case | Chiều dài card (mm) |
-| `power_pin` | string | ★ | — | "None", "8-pin", "12-pin", "16-pin" |
-| `tdp` | number | — | PSU calc | Công suất nhiệt (W) |
-| `boost_clock` | number | — | — | Xung nhịp tối đa (GHz) |
-| `ray_tracing` | boolean | — | — | Hỗ trợ Ray Tracing |
+## 4. Cấu Trúc Specs Từng Loại Linh Kiện
 
-```json
-{
-  "memory_gb": 12,
-  "memory_type": "GDDR6X",
-  "length_mm": 285,
-  "power_pin": "16-pin",
-  "tdp": 200,
-  "boost_clock": 2.48,
-  "ray_tracing": true
-}
-```
+Mỗi loại linh kiện yêu cầu các `spec_name` cụ thể. Các field **★ bắt buộc** — thiếu thì AI sẽ bỏ qua sản phẩm đó.
 
----
+### CPU (category_id = 1)
 
-### RAM (category: "RAM")
-| Trường | Kiểu | Bắt buộc | Dùng bởi | Mô tả |
-|--------|------|----------|----------|-------|
-| `type` | string | ★ | Tương thích Mainboard | "DDR4" hoặc "DDR5" |
-| `capacity_gb` | number | ★ | Auto-Build (ưu tiên lớn) | 8, 16, 32, 64, 96 |
-| `speed_mhz` | number | ★ | Auto-Build (ưu tiên nhanh) | 3200, 3600, 4800, 6000 |
-| `kit_size` | string | ★ | — | "1x8", "2x8", "2x16", "2x32" |
-| `latency` | number | — | — | CAS latency (16, 30, 36...) |
-| `voltage` | number | — | — | 1.1, 1.2, 1.35, 1.4 |
-| `rgb` | boolean | — | — | Có đèn RGB không |
+| spec_name | Ví dụ | Bắt buộc | Dùng để |
+|---|---|---|---|
+| socket | `LGA1700` / `AM5` | ★ | Khớp với Mainboard |
+| cores | `14` | ★ | Chọn CPU mạnh nhất |
+| threads | `20` | | Thông tin |
+| tdp | `125` | ★ | Tính wattage PSU + kiểm tra cooler |
+| generation | `13th Gen Intel` | | Thông tin |
+| base_clock | `3.5` | | Thông tin (GHz) |
+| boost_clock | `5.1` | | Thông tin (GHz) |
+| cache_mb | `24` | | Thông tin |
+| series | `Core i5` | | Thông tin |
 
-```json
-{
-  "type": "DDR4",
-  "capacity_gb": 16,
-  "speed_mhz": 3200,
-  "kit_size": "2x8",
-  "latency": 16,
-  "voltage": 1.35,
-  "rgb": false
-}
-```
+### VGA (category_id = 2)
 
----
+| spec_name | Ví dụ | Bắt buộc | Dùng để |
+|---|---|---|---|
+| memory_gb | `12` | ★ | Chọn GPU mạnh nhất |
+| memory_type | `GDDR6X` | ★ | Thông tin |
+| length_mm | `267` | ★ | Kiểm tra vừa Case |
+| power_pin | `16-pin` | ★ | Thông tin |
+| tdp | `220` | ★ | Tính wattage PSU cần |
+| ray_tracing | `true` | | Thông tin |
+| boost_clock | `2.61` | | Thông tin (GHz) |
 
-### Storage (category: "Storage")
-| Trường | Kiểu | Bắt buộc | Dùng bởi | Mô tả |
-|--------|------|----------|----------|-------|
-| `capacity_gb` | number | ★ | Auto-Build (lọc theo size) | 120, 240, 480, 500, 1000, 2000 |
-| `type` | string | ★ | — | "SSD" hoặc "HDD" |
-| `interface` | string | ★ | — | "NVMe", "SATA" |
-| `form_factor` | string | — | — | "M.2", "2.5\"", "3.5\"" |
-| `speed_mbps` | number | — | Auto-Build (ưu tiên nhanh) | Tốc độ đọc (MB/s) |
-| `encrypted` | boolean | — | — | Hỗ trợ mã hóa |
+### Mainboard (category_id = 3)
 
-```json
-{
-  "capacity_gb": 1000,
-  "type": "SSD",
-  "interface": "NVMe",
-  "form_factor": "M.2",
-  "speed_mbps": 7000,
-  "encrypted": false
-}
-```
+| spec_name | Ví dụ | Bắt buộc | Dùng để |
+|---|---|---|---|
+| socket | `LGA1700` | ★ | Phải khớp CPU.socket |
+| chipset | `B760` | ★ | Thông tin |
+| ram_type | `DDR4` / `DDR5` | ★ | Phải khớp RAM.type |
+| form_factor | `ATX` / `mATX` | ★ | Thông tin |
+| ram_slots | `4` | | Thông tin |
+| m2_slots | `2` | | Thông tin |
 
----
+### RAM (category_id = 5)
 
-### PSU (category: "PSU")
-| Trường | Kiểu | Bắt buộc | Dùng bởi | Mô tả |
-|--------|------|----------|----------|-------|
-| `wattage` | number | ★ | Tương thích (PSU_WATTAGE) | Công suất (W): 400, 500, 650, 750, 850, 1000 |
-| `certification` | string | ★ | — | "None", "80 Plus Bronze", "80 Plus Gold", "80 Plus Platinum", "80 Plus Titanium" |
-| `modular` | string | ★ | — | "None", "Semi", "Full" |
-| `pcie_8pin_count` | number | — | — | Số đầu cắm PCIe 8-pin |
-| `pcie_12vhpwr_count` | number | — | — | Số đầu cắm 12VHPWR (RTX 40xx) |
-| `fan_size` | number | — | — | Kích thước quạt (mm) |
+| spec_name | Ví dụ | Bắt buộc | Dùng để |
+|---|---|---|---|
+| type | `DDR4` / `DDR5` | ★ | Phải khớp Mainboard.ram_type |
+| capacity_gb | `32` | ★ | Chọn RAM lớn nhất |
+| speed_mhz | `5600` | ★ | Chọn RAM nhanh nhất |
+| kit_size | `2x16` | | Thông tin |
+| latency | `36` | | Thông tin |
+| voltage | `1.1` | | Thông tin |
 
-```json
-{
-  "wattage": 750,
-  "certification": "80 Plus Gold",
-  "modular": "Full",
-  "pcie_8pin_count": 2,
-  "pcie_12vhpwr_count": 1,
-  "fan_size": 140
-}
-```
+### Storage (category_id = 6)
+
+| spec_name | Ví dụ | Bắt buộc | Dùng để |
+|---|---|---|---|
+| capacity_gb | `1000` | ★ | Chọn đủ dung lượng |
+| type | `SSD` / `HDD` | ★ | Thông tin |
+| interface | `NVMe` / `SATA` | ★ | Thông tin |
+| form_factor | `M.2` / `2.5"` | | Thông tin |
+| speed_mbps | `5150` | ★ | Chọn ổ nhanh nhất |
+
+### PSU (category_id = 7)
+
+| spec_name | Ví dụ | Bắt buộc | Dùng để |
+|---|---|---|---|
+| wattage | `750` | ★ | Phải ≥ (CPU.tdp + GPU.tdp) × 1.3 |
+| certification | `80 Plus Gold` | ★ | Thông tin |
+| modular | `Full` / `Semi` / `Non` | | Thông tin |
+
+### Cooler (category_id = 8)
+
+| spec_name | Ví dụ | Bắt buộc | Dùng để |
+|---|---|---|---|
+| type | `Air` / `AIO` | ★ | Thông tin |
+| supported_sockets | `["LGA1700","AM5","AM4"]` | ★ | Phải chứa CPU.socket |
+| max_tdp | `220` | ★ | Phải ≥ CPU.tdp |
+| height_mm | `155` | ★ | Phải ≤ Case.max_cooler_height_mm |
+| noise_db | `28` | | Thông tin |
+| fans | `1` | | Thông tin |
+
+> **AIO Cooler**: `height_mm` là chiều cao pump block (~50mm), không phải radiator → luôn vừa case.
+
+### Case (category_id = 9)
+
+| spec_name | Ví dụ | Bắt buộc | Dùng để |
+|---|---|---|---|
+| form_factor | `ATX` / `mATX` | ★ | Thông tin |
+| max_gpu_length_mm | `360` | ★ | Phải ≥ GPU.length_mm |
+| max_cooler_height_mm | `185` | ★ | Phải ≥ Cooler.height_mm |
+| fans_included | `2` | | Thông tin |
 
 ---
 
-### Cooler (category: "Cooler")
-| Trường | Kiểu | Bắt buộc | Dùng bởi | Mô tả |
-|--------|------|----------|----------|-------|
-| `type` | string | ★ | — | "Air" hoặc "AIO" |
-| `supported_sockets` | array | ★ | Tương thích CPU | ["LGA1700", "AM5", "AM4", "LGA1151"] |
-| `max_tdp` | number | ★ | Tương thích CPU (TDP) | TDP tối đa hỗ trợ (W) |
-| `height_mm` | number | — | Tương thích Case | Chiều cao tản nhiệt (mm) — **cần cho air cooler** |
-| `noise_db` | number | — | — | Độ ồn (dB) |
-| `fans` | number | — | — | Số quạt |
+## 5. Hướng Dẫn Thêm Sản Phẩm Mới
 
-```json
-{
-  "type": "Air",
-  "supported_sockets": ["LGA1700", "AM5", "AM4", "LGA1151"],
-  "max_tdp": 180,
-  "height_mm": 154,
-  "noise_db": 30,
-  "fans": 1
-}
-```
-
----
-
-### Case (category: "Case")
-| Trường | Kiểu | Bắt buộc | Dùng bởi | Mô tả |
-|--------|------|----------|----------|-------|
-| `form_factor` | string | ★ | — | "ATX", "mATX", "ITX" |
-| `max_gpu_length_mm` | number | ★ | Tương thích GPU | Chiều dài GPU tối đa (mm) |
-| `max_cooler_height_mm` | number | ★ | Tương thích Cooler | Chiều cao tản nhiệt tối đa (mm) |
-| `fans_included` | number | — | — | Số quạt kèm theo |
-| `dust_filters` | boolean | — | — | Có lưới lọc bụi không |
-| `front_io` | object | — | — | `{"usb_a": 2, "usb_c": 1, "audio": true}` |
-
-```json
-{
-  "form_factor": "ATX",
-  "max_gpu_length_mm": 380,
-  "max_cooler_height_mm": 185,
-  "fans_included": 2,
-  "dust_filters": true,
-  "front_io": {"usb_a": 2, "usb_c": 1, "audio": true}
-}
-```
-
----
-
-## Hướng Dẫn Thêm Sản Phẩm Mới
-
-### Các Trường Bắt Buộc Của Bảng PRODUCT
+### Cách thêm 1 sản phẩm đúng chuẩn
 
 ```sql
-INSERT INTO dbo.PRODUCT (name, description, price, stock_quantity, category_id, brand, status, specs_json)
-VALUES (N'Tên sản phẩm', N'Mô tả', giá, số_lượng, category_id, N'Hãng', N'Available', N'{"..."}')
+USE PCComponentStore;
+
+DECLARE @pid INT;
+
+-- Bước 1: INSERT vào PRODUCT
+INSERT INTO PRODUCT (name, description, price, stock_quantity, category_id, brand)
+VALUES (N'Intel Core i5-14600K', N'14 Cores / 20 Threads, LGA1700, 125W', 6500000, 50, 1, 'Intel');
+
+SET @pid = SCOPE_IDENTITY();  -- Lấy ID vừa insert
+
+-- Bước 2: INSERT specs vào PRODUCT_SPEC
+INSERT INTO PRODUCT_SPEC (product_id, spec_name, spec_value) VALUES
+(@pid, 'socket',      'LGA1700'),
+(@pid, 'cores',       '14'),
+(@pid, 'threads',     '20'),
+(@pid, 'tdp',         '125'),
+(@pid, 'generation',  '14th Gen Intel'),
+(@pid, 'base_clock',  '3.5'),
+(@pid, 'boost_clock', '5.3'),
+(@pid, 'series',      'Core i5');
 ```
 
-| Trường | Kiểu | Bắt buộc | Lưu ý |
-|--------|------|----------|-------|
-| `name` | NVARCHAR(255) | ★ | Tên đầy đủ, unique để script không bị trùng |
-| `price` | DECIMAL(18,2) | ★ | Đơn vị VNĐ, không có dấu phẩy |
-| `stock_quantity` | INT | ★ | Số lượng tồn kho |
-| `category_id` | INT | ★ | Xem bảng Category ID bên dưới |
-| `brand` | NVARCHAR(100) | ★ | Intel, AMD, ASUS, Gigabyte... |
-| `status` | NVARCHAR(50) | ★ | Luôn dùng `'Available'` |
-| `specs_json` | NVARCHAR(MAX) | ★ | JSON hợp lệ theo schema từng loại |
+### Quy tắc bắt buộc khi thêm sản phẩm
 
-### Category ID
-| category_id | Tên | Schema dùng |
-|-------------|-----|-------------|
-| 1 | CPU | CPU schema |
-| 2 | VGA | GPU schema |
-| 3 | Mainboard | MAINBOARD schema |
-| 5 | RAM | RAM schema |
-| 6 | Storage | STORAGE schema |
-| 7 | PSU | PSU schema |
-| 8 | Cooler | COOLER schema |
-| 9 | Case | CASE schema |
+1. **Số lưu dạng string**: `'125'` không phải `125` — code tự convert
+2. **Boolean lưu dạng string**: `'true'` / `'false'`
+3. **Array lưu dạng JSON string**: `'["LGA1700","AM5"]'` — ngoặc kép bên trong
+4. **Sản phẩm không có specs** → AI bỏ qua hoàn toàn
+5. **Thiếu field bắt buộc** → AI bỏ qua sản phẩm đó
+
+### Kiểm tra compatibility trước khi thêm
+
+| Cặp linh kiện | Field phải khớp |
+|---|---|
+| CPU ↔ Mainboard | `CPU.socket == Mainboard.socket` |
+| Mainboard ↔ RAM | `Mainboard.ram_type == RAM.type` |
+| GPU ↔ Case | `GPU.length_mm <= Case.max_gpu_length_mm` |
+| Cooler ↔ CPU | `CPU.socket ∈ Cooler.supported_sockets` |
+| Cooler ↔ CPU | `Cooler.max_tdp >= CPU.tdp` |
+| Cooler ↔ Case | `Cooler.height_mm <= Case.max_cooler_height_mm` |
+| PSU ↔ Build | `PSU.wattage >= (CPU.tdp + GPU.tdp) × 1.3` |
 
 ---
 
-### Quy Tắc Validation specs_json
+## 6. Quy Tắc Tương Thích
 
-#### 1. Sản phẩm sẽ bị bỏ qua nếu:
-- `specs_json` là NULL hoặc chuỗi rỗng
-- `specs_json` không phải JSON hợp lệ (parse lỗi)
-- Thiếu trường bắt buộc (★) cho từng loại
+File: `src/utils/compatibilityRules.js`
 
-#### 2. Sản phẩm sẽ không được chọn trong Auto-Build nếu:
-- **CPU**: thiếu `socket`, `cores`, hoặc `tdp`
-- **Mainboard**: thiếu `socket` hoặc `ram_type` → không match được với CPU/RAM
-- **RAM**: thiếu `type` → không match được với Mainboard
-- **GPU**: thiếu `memory_gb` → không thể so sánh hiệu năng
-- **Cooler**: thiếu `supported_sockets` hoặc `max_tdp` → không qua kiểm tra tương thích
-- **PSU**: thiếu `wattage` → không qua kiểm tra công suất
-- **Case**: thiếu `max_gpu_length_mm` hoặc `max_cooler_height_mm` → không qua kiểm tra kích thước
+| Rule ID | Tên | Mô tả | Mức độ |
+|---|---|---|---|
+| CPU_SOCKET_MATCH | Khớp socket | CPU.socket == Mainboard.socket | ERROR |
+| RAM_TYPE_SUPPORT | Loại RAM | Mainboard.ram_type == RAM.type | ERROR |
+| PSU_WATTAGE_SUFFICIENT | Đủ công suất | PSU.wattage ≥ (CPU.tdp + GPU.tdp) × 1.3 | WARNING |
+| COOLER_SOCKET_SUPPORT | Cooler hỗ trợ socket | CPU.socket ∈ Cooler.supported_sockets | ERROR |
+| COOLER_TDP_SUPPORT | Cooler đủ TDP | Cooler.max_tdp ≥ CPU.tdp | WARNING |
+| GPU_CASE_SIZE_FIT | GPU vừa case | GPU.length_mm ≤ Case.max_gpu_length_mm | ERROR |
+| COOLER_CASE_SIZE_FIT | Cooler vừa case | Cooler.height_mm ≤ Case.max_cooler_height_mm | ERROR |
 
-#### 3. Ràng buộc tương thích bắt buộc:
-
-| Cặp linh kiện | Điều kiện | Ví dụ đúng |
-|---------------|-----------|------------|
-| CPU ↔ Mainboard | `cpu.socket === mainboard.socket` | LGA1700 ↔ LGA1700 |
-| RAM ↔ Mainboard | `ram.type === mainboard.ram_type` | DDR4 ↔ DDR4 |
-| Cooler ↔ CPU | `cooler.supported_sockets.includes(cpu.socket)` | ["LGA1700","AM5"] ↔ LGA1700 |
-| Cooler ↔ CPU | `cooler.max_tdp >= cpu.tdp` | 180W ≥ 125W |
-| GPU ↔ Case | `case.max_gpu_length_mm >= gpu.length_mm` | 360mm ≥ 285mm |
-| Cooler ↔ Case | `case.max_cooler_height_mm >= cooler.height_mm` | 165mm ≥ 154mm |
-| PSU ↔ Hệ thống | `psu.wattage >= (cpu.tdp + gpu.tdp) × 1.3` | 650W ≥ 345W |
-
-#### 4. Ví dụ thêm CPU mới đúng chuẩn:
-
-```sql
-IF NOT EXISTS (SELECT 1 FROM dbo.PRODUCT WHERE name = 'Intel Core i5-14600K')
-INSERT INTO dbo.PRODUCT (name, description, price, stock_quantity, category_id, brand, status, specs_json)
-VALUES (
-  N'Intel Core i5-14600K',
-  N'14th Gen Intel Core i5 - 14 Cores 20 Threads, 125W TDP',
-  7500000,        -- giá VNĐ
-  50,             -- tồn kho
-  1,              -- category_id = CPU
-  N'Intel',
-  N'Available',
-  N'{"socket":"LGA1700","cores":14,"threads":20,"tdp":125,"generation":"14th Gen Intel","iGPU":true,"base_clock":3.5,"boost_clock":5.3,"cache_mb":24,"series":"Core i5"}'
-);
+### Tính điểm tương thích
+```
+Điểm = 100 - (số lỗi ERROR × 25) - (số cảnh báo WARNING × 10)
 ```
 
-#### 5. Lưu ý quan trọng khi thêm hàng loạt:
-
-- **CPU Intel 12th/13th/14th Gen** → `socket: "LGA1700"` → cần mainboard H610/B660/B760/Z690/Z790
-- **CPU AMD Ryzen 7000** → `socket: "AM5"` → cần mainboard B650/X670 + RAM **DDR5**
-- **CPU AMD Ryzen 5000** → `socket: "AM4"` → cần mainboard B550/X570 + RAM **DDR4**
-- **DDR4 và DDR5 không dùng chung mainboard** — phải đúng `ram_type`
-- **PSU** nên có `wattage` ≥ 400W; build văn phòng cần tối thiểu 400W, gaming cần 550-850W
-- **Cooler** phải có `supported_sockets` là mảng JSON: `["LGA1700","AM5","AM4"]` (không phải chuỗi)
+| Điểm | Đánh giá |
+|---|---|
+| 100 | Hoàn toàn tương thích |
+| 75-99 | Có cảnh báo nhỏ |
+| 50-74 | Có vấn đề cần xem xét |
+| < 50 | Không tương thích, cần thay linh kiện |
 
 ---
 
-## Quy Tắc Kiểm Tra Tương Thích
+## 7. Các Loại Build & Phân Bổ Ngân Sách
 
-Hệ thống kiểm tra 7 quy tắc khi xác thực một bộ PC.
+### Nhận diện loại build từ query (`detectBuildType`)
 
-| Mã Quy Tắc | Tên | Điều Kiện | Mức Độ |
-|------------|-----|-----------|--------|
-| CPU_SOCKET_MATCH | Socket CPU-Mainboard | `cpu.specs.socket === mainboard.specs.socket` | LỖI |
-| RAM_TYPE_SUPPORT | Loại RAM | `ram.specs.type === mainboard.specs.ram_type` | LỖI |
-| PSU_WATTAGE_SUFFICIENT | Công suất nguồn | `psu.specs.wattage >= (cpu.tdp + gpu.tdp) × 1.3` | LỖI |
-| COOLER_SOCKET_SUPPORT | Socket tản nhiệt | `cooler.specs.supported_sockets.includes(cpu.specs.socket)` | LỖI |
-| COOLER_TDP_SUPPORT | TDP tản nhiệt | `cooler.specs.max_tdp >= cpu.specs.tdp` | CẢNH BÁO |
-| GPU_CASE_SIZE_FIT | Chiều dài GPU | `case.specs.max_gpu_length_mm >= gpu.specs.length_mm` | CẢNH BÁO |
-| COOLER_CASE_SIZE_FIT | Chiều cao tản nhiệt | `case.specs.max_cooler_height_mm >= cooler.specs.height_mm` | CẢNH BÁO |
+Query của người dùng được phân tích theo thứ tự ưu tiên:
 
-### Công Thức Tính Điểm Tương Thích
-```
-điểm = 100 - (số_lỗi × 25) - (số_cảnh_báo × 10)
-điểm = tối thiểu 0
-```
+| Ưu tiên | Build Type | Từ khóa nhận diện |
+|---|---|---|
+| 1 | `gaming_workstation` | "game" + "3d/render/đồ họa" (kết hợp) |
+| 2 | `streaming` | stream, obs, twitch, content creator |
+| 3 | `editing` | edit, premiere, davinci, photoshop, video clip |
+| 4 | `ai_ml` | AI, machine learning, pytorch, tensorflow |
+| 5 | `home_server` | server, nas, lưu trữ, plex |
+| 6 | `budget` | rẻ nhất, tiết kiệm, giá rẻ, đơn giản |
+| 7 | `gaming` | gaming, game, fps, moba, aaa |
+| 8 | `workstation` | workstation, đồ họa, render, 3d, kiến trúc |
+| 9 | `office` | văn phòng, office, học tập, word, excel |
+| — | `gaming` | Mặc định nếu không khớp |
 
----
+### Phân bổ ngân sách theo từng loại build (%)
 
-## API Phase 1: Sản Phẩm & Xác Thực
+| Linh kiện | gaming | workstation | office | gaming_ws | streaming | editing | ai_ml | budget | home_server |
+|---|---|---|---|---|---|---|---|---|---|
+| CPU | 22 | 28 | 25 | 25 | 26 | 28 | 20 | 22 | 20 |
+| Mainboard | 10 | 12 | 20 | 10 | 10 | 10 | 10 | 18 | 15 |
+| RAM | 12 | 20 | 15 | 16 | 14 | 22 | 18 | 15 | 25 |
+| GPU | 34 | 18 | 0 | 28 | 28 | 14 | 36 | 20 | 0 |
+| Storage | 8 | 10 | 15 | 9 | 8 | 14 | 8 | 12 | 25 |
+| PSU | 7 | 6 | 10 | 6 | 7 | 6 | 5 | 8 | 10 |
+| Cooler | 4 | 3 | 5 | 3 | 4 | 3 | 2 | 3 | 3 |
+| Case | 3 | 3 | 10 | 3 | 3 | 3 | 1 | 2 | 2 |
 
-### Xác Thực Người Dùng
+> `office` và `home_server` không có GPU (= 0).
 
-#### POST /api/auth/register
-Đăng ký tài khoản mới.
-```json
-Yêu cầu: { "username": "user1", "password": "pass123", "email": "user1@mail.com", "role": "customer" }
-Phản hồi: { "success": true, "message": "User registered", "data": { "user_id": 1, "username": "user1" } }
-```
+### Nhận diện ngân sách từ query
 
-#### POST /api/auth/login
-Đăng nhập.
-```json
-Yêu cầu: { "username": "user1", "password": "pass123" }
-Phản hồi: { "success": true, "token": "eyJ...", "user": { "user_id": 1, "role": "customer" } }
-```
-
-### Sản Phẩm
-
-#### GET /api/products
-Lấy danh sách sản phẩm (có phân trang).
-```
-GET /api/products?page=1&limit=10&category_id=1&search=i5
-```
-
-#### GET /api/products/:id
-Lấy thông tin sản phẩm theo ID.
-
-#### POST /api/products
-Tạo sản phẩm mới (yêu cầu quyền Admin + JWT).
-```json
-{
-  "name": "Intel Core i5-13400F",
-  "price": 4500000,
-  "category_id": 1,
-  "brand": "Intel",
-  "stock": 50
-}
-```
-
-#### PUT /api/products/:id
-Cập nhật thông tin sản phẩm.
-
-#### DELETE /api/products/:id
-Xóa sản phẩm.
-
-### Danh Mục
-
-#### GET /api/categories
-Lấy tất cả danh mục.
-
-#### POST /api/categories
-Tạo danh mục mới.
-```json
-{ "name": "CPU", "description": "Bộ vi xử lý" }
-```
+| Cú pháp | Ví dụ | Kết quả |
+|---|---|---|
+| `X triệu` | "25 triệu" | 25.000.000 VNĐ |
+| `X tr` | "30tr" | 30.000.000 VNĐ |
+| `X củ` | "15 củ" | 15.000.000 VNĐ |
+| Số nguyên ≥ 6 chữ số | "20000000" | 20.000.000 VNĐ |
 
 ---
 
-## API Phase 2: Specs & Kiểm Tra Tương Thích
+## 8. API Specs & Tương Thích
 
-### Specs V2 (Dạng JSON)
+### Quản lý Specs (PRODUCT_SPEC)
 
-#### POST /api/specs/v2/:productId
-Thiết lập specs JSON cho một sản phẩm.
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| POST | `/api/specifications/json` | Thêm/cập nhật specs cho sản phẩm |
+| GET | `/api/specifications/json/:product_id` | Lấy specs của 1 sản phẩm |
+| PATCH | `/api/specifications/json/:product_id` | Cập nhật specs |
+| DELETE | `/api/specifications/json/:product_id` | Xóa specs |
+| GET | `/api/specifications/category/:category_id` | Lấy tất cả sản phẩm có specs theo danh mục |
+| POST | `/api/specifications/validate` | Validate specs không lưu |
+| GET | `/api/specifications/schema/:category` | Xem schema của danh mục |
+| GET | `/api/specifications/schemas` | Xem tất cả schemas |
+
+**POST /api/specifications/json** — Thêm specs:
 ```json
 {
-  "socket": "LGA1700",
-  "cores": 6,
-  "threads": 12,
-  "base_clock_ghz": 3.4,
-  "boost_clock_ghz": 4.9,
-  "tdp": 65,
-  "memory_type": ["DDR4", "DDR5"],
-  "integrated_graphics": true
-}
-```
-
-#### GET /api/specs/v2/:productId
-Lấy specs JSON của một sản phẩm.
-
-#### GET /api/specs/v2/category/:categoryId
-Lấy tất cả sản phẩm có specs theo danh mục.
-
-### Kiểm Tra Tương Thích
-
-#### POST /api/compatibility/check
-Kiểm tra tương thích của một bộ PC hoàn chỉnh.
-```json
-Yêu cầu:
-{
-  "cpuId": 1,
-  "mainboardId": 10,
-  "ramId": 20,
-  "gpuId": 30,
-  "storageId": 40,
-  "psuId": 50,
-  "coolerId": 60,
-  "caseId": 70
-}
-
-Phản hồi:
-{
-  "success": true,
-  "data": {
-    "compatible": true,
-    "compatibility_score": 100,
-    "errors": [],
-    "warnings": [],
-    "passed_rules": ["CPU_SOCKET_MATCH", "RAM_TYPE_SUPPORT", ...],
-    "summary": "Build is fully compatible"
+  "product_id": 5,
+  "category": "CPU",
+  "specs": {
+    "socket": "LGA1700",
+    "cores": 14,
+    "threads": 20,
+    "tdp": 125,
+    "generation": "13th Gen Intel"
   }
 }
 ```
 
-#### POST /api/compatibility/check-pair
-Kiểm tra tương thích giữa hai linh kiện cụ thể.
+### Kiểm Tra Tương Thích
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| POST | `/api/compatibility/check` | Kiểm tra 1 bộ build |
+| POST | `/api/compatibility/validate-pair` | Kiểm tra cặp 2 linh kiện |
+| GET | `/api/compatibility/rules` | Xem 7 quy tắc tương thích |
+
+**POST /api/compatibility/check** — Kiểm tra build:
 ```json
-Yêu cầu: { "component1Id": 1, "component2Id": 10 }
+{
+  "cpuId": 1,
+  "mainboardId": 5,
+  "ramId": 10,
+  "gpuId": 3,
+  "storageId": 12,
+  "psuId": 15,
+  "coolerId": 18,
+  "caseId": 21
+}
 ```
 
-#### GET /api/compatibility/rules
-Lấy danh sách tất cả các quy tắc tương thích.
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "compatible": true,
+    "compatibility_score": 90,
+    "errors": [],
+    "warnings": ["PSU_WATTAGE_SUFFICIENT: PSU 650W khuyến nghị 750W+ cho hệ thống này"]
+  }
+}
+```
 
 ---
 
-## API Phase 3: AI Build PC
+## 9. API AI Build PC
 
-### POST /api/ai/build
-**Endpoint chính** — Build PC hoàn chỉnh từ câu hỏi tự nhiên bằng tiếng Việt.
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| GET | `/api/ai/test` | Kiểm tra kết nối Groq API |
+| POST | `/api/ai/analyze` | Phân tích query (không build) |
+| POST | `/api/ai/build` | **Build PC hoàn chỉnh từ query** |
+| POST | `/api/ai/recommendations` | Gợi ý linh kiện chung chung |
 
-**Yêu cầu:**
+### GET /api/ai/test
+
+Response khi dùng Mock mode:
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "message": "✅ Running in MOCK mode - no real API calls",
+    "mode": "MOCK"
+  }
+}
+```
+
+### POST /api/ai/analyze
+
+Request:
+```json
+{ "query": "Tôi muốn build PC gaming 25 triệu" }
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "intent": "build_pc",
+    "buildType": "gaming",
+    "budget": 25000000,
+    "cpuPreference": "performance",
+    "gpuPreference": "performance",
+    "storageSize": 500,
+    "confidence": 0.95,
+    "explanation": "Build PC gaming với ngân sách 25 triệu đồng"
+  }
+}
+```
+
+### POST /api/ai/build ← **API chính**
+
+Request:
 ```json
 { "query": "Build PC gaming 25 triệu" }
 ```
 
-**Phản hồi:**
+Response thành công:
 ```json
 {
   "success": true,
@@ -606,24 +495,17 @@ Lấy danh sách tất cả các quy tắc tương thích.
   "data": {
     "query": "Build PC gaming 25 triệu",
     "analysis": {
-      "intent": "build_pc",
       "buildType": "gaming",
-      "budget": 25000000,
-      "cpuPreference": "performance",
-      "gpuPreference": "performance",
-      "storageSize": 500,
-      "confidence": 0.9,
-      "explanation": "[MOCK] Build PC gaming với ngân sách 25.000.000đ",
-      "mock": true
+      "budget": 25000000
     },
     "build": {
       "purpose": "gaming",
       "budget_total": 25000000,
       "budget_allocation": {
         "cpu": 5500000,
-        "mainboard": 2000000,
+        "mainboard": 2500000,
         "ram": 3000000,
-        "gpu": 9000000,
+        "gpu": 8500000,
         "storage": 2000000,
         "psu": 1750000,
         "cooler": 1000000,
@@ -631,10 +513,10 @@ Lấy danh sách tất cả các quy tắc tương thích.
       },
       "components": {
         "cpu": {
-          "product_id": 1,
-          "product_name": "Intel Core i5-13400F",
-          "price": 4500000,
-          "specs": { "socket": "LGA1700", "cores": 6, "tdp": 65 }
+          "product_id": 5,
+          "product_name": "Intel Core i5-13600K",
+          "price": 5500000,
+          "specs": { "socket": "LGA1700", "cores": 14, "tdp": 125 }
         },
         "mainboard": { "..." },
         "ram": { "..." },
@@ -644,8 +526,8 @@ Lấy danh sách tất cả các quy tắc tương thích.
         "cooler": { "..." },
         "case": { "..." }
       },
-      "estimated_total_cost": 16280000,
-      "cost_over_budget": -8720000,
+      "estimated_total_cost": 24800000,
+      "cost_over_budget": -200000,
       "compatibility": {
         "compatible": true,
         "compatibility_score": 100,
@@ -653,776 +535,221 @@ Lấy danh sách tất cả các quy tắc tương thích.
         "warnings": []
       }
     },
-    "explanation": "[MOCK] Đây là bộ PC gaming được tối ưu trong ngân sách. Tổng chi phí: 16.280.000đ. Điểm tương thích: 100/100."
+    "explanation": "Đây là bộ PC gaming cân bằng hiệu năng và chi phí. CPU i5-13600K với 14 nhân xử lý mạnh mẽ, kết hợp RTX 4060 8GB đủ chơi game 1080p-1440p mượt mà. Tổng chi phí nằm trong ngân sách, độ tương thích đạt 100 điểm."
   }
 }
 ```
 
-### POST /api/ai/analyze
-Phân tích câu hỏi mà không tạo build (chỉ nhận diện ý định).
-```json
-Yêu cầu: { "query": "tôi muốn build PC workstation 40 triệu để render 3D" }
-Phản hồi:
-{
-  "success": true,
-  "data": {
-    "intent": "build_pc",
-    "buildType": "workstation",
-    "budget": 40000000,
-    "cpuPreference": "performance",
-    "gpuPreference": "performance",
-    "confidence": 0.9
-  }
-}
-```
-
-### POST /api/ai/recommendations
-Gợi ý linh kiện chung không kèm auto-build.
-```json
-Yêu cầu: { "requirements": "PC gaming 1440p, ngân sách 20 triệu" }
-Phản hồi:
-{
-  "success": true,
-  "data": {
-    "requirements": "PC gaming 1440p...",
-    "components": [
-      { "type": "CPU", "name": "Intel Core i5-13600K", "reason": "Hiệu năng tốt tầm giá" },
-      { "type": "GPU", "name": "RTX 4070", "reason": "Phù hợp gaming 1440p" }
-    ]
-  }
-}
-```
-
-### GET /api/ai/test
-Kiểm tra kết nối Groq API (hoặc trạng thái chế độ mock).
-```json
-// Chế độ mock (USE_MOCK_AI=true):
-{
-  "success": true,
-  "data": {
-    "message": "✅ Running in MOCK mode - no real API calls",
-    "mode": "MOCK",
-    "timestamp": "2025-01-01T00:00:00.000Z"
-  }
-}
-
-// Chế độ Groq thật (USE_MOCK_AI=false):
-{
-  "success": true,
-  "data": {
-    "message": "The Groq API is functioning as intended and is working.",
-    "mode": "GROQ",
-    "model": "llama-3.3-70b-versatile",
-    "timestamp": "..."
-  }
-}
-```
-
-### GET /api/ai/auto-build/examples
-Lấy các ví dụ cấu hình build mẫu.
-```json
-Phản hồi:
-{
-  "success": true,
-  "data": {
-    "gaming_budget": { "description": "PC gaming tầm thấp", "budget": 500, "purpose": "gaming" },
-    "gaming_mid": { "description": "PC gaming tầm trung", "budget": 1000 },
-    "gaming_high": { "description": "PC gaming cao cấp", "budget": 2500 },
-    "workstation_budget": { "description": "Workstation tầm thấp", "budget": 800 },
-    "workstation_pro": { "description": "Workstation chuyên nghiệp", "budget": 2000 },
-    "office_budget": { "description": "PC văn phòng", "budget": 300 }
-  }
-}
-```
-
-### POST /api/ai/auto-build
-Auto-build trực tiếp (bỏ qua bước phân tích AI).
-```json
-Yêu cầu:
-{
-  "budget": 25000000,
-  "preferences": {
-    "purpose": "gaming",
-    "cpuPreference": "performance",
-    "gpuPreference": "performance",
-    "storageSize": 500
-  }
-}
-```
-
----
-
-## Luồng Hoạt Động Chi Tiết: POST /api/ai/build
-
-Khi client gọi `POST /api/ai/build` với body `{ "query": "..." }`, hệ thống chạy tuần tự qua **4 lớp** sau:
-
-```
-Client → Router → Controller → Service → Model → DB
-```
-
-### Bước 0 — Router & Controller (`aiRoute.js` → `aiController.js`)
-
-```
-POST /api/ai/build
-  │
-  ▼
-aiController.buildPC(req, res)
-  │  Kiểm tra: query có rỗng không?
-  │  → Rỗng: trả 400 "Query is required"
-  │
-  ▼
-aiService.orchestrateBuildPC(query)
-```
-
----
-
-### Bước 1 — Phân Tích Câu Hỏi (`aiService.js` → `analyzeRequest`)
-
-```
-analyzeRequest("tôi muốn mua máy tính 15 củ để chơi game")
-  │
-  ├─ USE_MOCK_AI=true ?
-  │     ▼ mockAnalyzeRequest(query)
-  │       ├─ parseBudgetFromQuery()  → nhận "15 củ" → 15.000.000đ
-  │       │   Regex: "triệu" | "tr" | "củ" | số 6+ chữ số
-  │       └─ detectBuildType()       → nhận "choi game" → "gaming"
-  │           Regex theo thứ tự ưu tiên:
-  │           1. gaming_workstation (game + 3D/render cùng lúc)
-  │           2. streaming (stream, obs, twitch)
-  │           3. editing (premiere, davinci, chỉnh sửa video)
-  │           4. ai_ml (pytorch, tensorflow, machine learning)
-  │           5. home_server (server, nas, lưu trữ)
-  │           6. budget (rẻ nhất, tiết kiệm)
-  │           7. gaming (game, fps, moba)
-  │           8. workstation (3d, render, đồ họa)
-  │           9. office (văn phòng, học tập, word/excel)
-  │
-  └─ USE_MOCK_AI=false ?
-        ▼ callGroq(messages, "llama-3.3-70b-versatile")
-          Prompt: phân tích câu hỏi → trả về JSON
-          {
-            "buildType": "gaming",
-            "budget": 15000000,
-            "cpuPreference": "performance",
-            "gpuPreference": "performance",
-            "storageSize": 500,
-            "confidence": 0.95
-          }
-          → Nếu Groq lỗi: tự động fallback về mockAnalyzeRequest()
-
-Kết quả trả về:
-{
-  intent: "build_pc",
-  buildType: "gaming",       ← loại build (9 loại)
-  budget: 15000000,          ← ngân sách VNĐ
-  cpuPreference: "performance",
-  gpuPreference: "performance",
-  storageSize: 500,
-  confidence: 0.95
-}
-```
-
----
-
-### Bước 2 — Map BuildType → Preferences (`aiService.js` → `orchestrateBuildPC`)
-
-```
-BUILD_TYPE_CONFIG["gaming"] = {
-  purpose: "gaming",
-  cpuPref: "performance",
-  gpuPref: "performance"
-}
-
-preferences = {
-  purpose: "gaming",
-  cpuPreference: "performance",   ← AI có thể override
-  gpuPreference: "performance",   ← AI có thể override
-  storageSize: 500
-}
-
-→ Nếu budget = null: throw Error "Vui lòng cho biết ngân sách..."
-```
-
----
-
-### Bước 3 — Auto-Build Engine (`autoBuildService.js` → `autoBuild`)
-
-```
-autoBuild(15.000.000đ, { purpose: "gaming", ... })
-  │
-  ├─ BƯỚC 3.1: Tính phân bổ ngân sách
-  │   gaming:
-  │   cpu      = 15M × 22% = 3.300.000đ
-  │   mainboard = 15M × 10% = 1.500.000đ  ← đủ mua H610M (1.3M)
-  │   ram      = 15M × 12% = 1.800.000đ
-  │   gpu      = 15M × 34% = 5.100.000đ
-  │   storage  = 15M × 8%  = 1.200.000đ
-  │   psu      = 15M × 7%  = 1.050.000đ
-  │   cooler   = 15M × 4%  = 600.000đ
-  │   case     = 15M × 3%  = 450.000đ
-  │
-  ├─ BƯỚC 3.2: Lấy sản phẩm từ DB (song song)
-  │   specificationModelV2.getAllSpecsByCategory("cpu")
-  │   specificationModelV2.getAllSpecsByCategory("mainboard")
-  │   specificationModelV2.getAllSpecsByCategory("ram")
-  │   specificationModelV2.getAllSpecsByCategory("gpu")
-  │   specificationModelV2.getAllSpecsByCategory("storage")
-  │   specificationModelV2.getAllSpecsByCategory("psu")
-  │   specificationModelV2.getAllSpecsByCategory("cooler_cpu")
-  │   specificationModelV2.getAllSpecsByCategory("case")
-  │   → Lọc: chỉ lấy sản phẩm có specs_json IS NOT NULL
-  │
-  ├─ BƯỚC 3.3: Chọn CPU
-  │   Lọc: price ≤ 3.300.000đ
-  │   Sắp xếp (performance): giảm dần theo cores
-  │   → Chọn CPU nhiều nhân nhất trong budget
-  │   → Nếu không có: throw "No CPU found within budget"
-  │
-  ├─ BƯỚC 3.4: Chọn Mainboard
-  │   Điều kiện: price ≤ 1.500.000đ VÀ socket === cpu.socket
-  │   Sắp xếp: giá thấp nhất
-  │   → Nếu không có: throw "No compatible Mainboard found"
-  │
-  ├─ BƯỚC 3.5: Chọn RAM
-  │   Điều kiện: price ≤ 1.800.000đ VÀ type === mainboard.ram_type
-  │   Sắp xếp: capacity_gb giảm dần → speed_mhz giảm dần
-  │   → Nếu không có: throw "No compatible RAM found"
-  │
-  ├─ BƯỚC 3.6: Chọn GPU (bỏ qua nếu gpuPreference="none")
-  │   Điều kiện: price ≤ 5.100.000đ
-  │   Sắp xếp (performance): memory_gb giảm dần
-  │   → Nếu không có: bỏ qua (không throw lỗi)
-  │
-  ├─ BƯỚC 3.7: Chọn Storage
-  │   Điều kiện: price ≤ 1.200.000đ
-  │   Sắp xếp: ưu tiên capacity ≥ storageSize → sau đó speed_mbps
-  │   → Nếu không có: throw "No Storage found within budget"
-  │
-  ├─ BƯỚC 3.8: Chọn Cooler
-  │   Điều kiện:
-  │     price ≤ 600.000đ
-  │     supported_sockets.includes(cpu.socket)
-  │     max_tdp >= cpu.tdp
-  │   Sắp xếp: giá thấp nhất
-  │   → Nếu không có: throw "No compatible Cooler found"
-  │
-  ├─ BƯỚC 3.9: Chọn PSU
-  │   Tính: required_wattage = (cpu.tdp + gpu.tdp) × 1.3
-  │   Ví dụ: (65W + 165W) × 1.3 = 299W → cần PSU ≥ 299W
-  │   Điều kiện: price ≤ 1.050.000đ VÀ wattage ≥ required_wattage
-  │   Sắp xếp: giá thấp nhất
-  │   → Nếu không có: throw "No suitable PSU found"
-  │
-  ├─ BƯỚC 3.10: Chọn Case
-  │   Điều kiện:
-  │     price ≤ 450.000đ
-  │     max_gpu_length_mm >= gpu.length_mm  (nếu có GPU)
-  │     max_cooler_height_mm >= cooler.height_mm
-  │   Sắp xếp: giá thấp nhất
-  │   → Nếu không có: throw "No suitable Case found"
-  │
-  └─ BƯỚC 3.11: Tính tổng & kiểm tra tương thích
-      estimated_total_cost = tổng giá 8 linh kiện
-      cost_over_budget = total - budget  (âm = dư ngân sách)
-      CompatibilityService.checkBuildCompatibility({
-        cpuId, mainboardId, ramId, gpuId, storageId, psuId, coolerId, caseId
-      })
-      → 7 quy tắc → tính điểm compatibility_score
-```
-
----
-
-### Bước 4 — Sinh Giải Thích (`aiService.js` → `generateBuildExplanation`)
-
-```
-generateBuildExplanation(query, build)
-  │
-  ├─ USE_MOCK_AI=true ?
-  │     ▼ mockGenerateExplanation(build)
-  │       → Template: "[MOCK] Đây là bộ PC gaming...Tổng: 12.3M. Điểm: 100/100"
-  │
-  └─ USE_MOCK_AI=false ?
-        ▼ callGroq(messages)
-          System prompt: "Bạn là chuyên gia tư vấn PC tại cửa hàng Việt Nam..."
-          User message:  "Khách yêu cầu: '...'
-                         Cấu hình: CPU: i3-12100 (1.9M), GPU: RX7600 (7.5M)...
-                         Tổng: 12.3M | Ngân sách: 15M | Điểm: 100/100
-                         Viết 3-4 câu giải thích..."
-          → Groq trả về đoạn văn tiếng Việt tự nhiên
-          → Nếu lỗi: fallback về mockGenerateExplanation()
-```
-
----
-
-### Bước 5 — Trả Về Client
-
-```json
-HTTP 200 OK
-{
-  "success": true,
-  "message": "✅ PC build generated successfully",
-  "data": {
-    "query": "tôi muốn mua máy tính 15 củ để chơi game",
-    "analysis": {
-      "buildType": "gaming",
-      "budget": 15000000,
-      "cpuPreference": "performance",
-      "confidence": 0.95
-    },
-    "build": {
-      "purpose": "gaming",
-      "budget_total": 15000000,
-      "budget_allocation": { "cpu": 3300000, "gpu": 5100000, "..." },
-      "components": {
-        "cpu":      { "product_id": 42, "product_name": "Intel Core i3-12100", "price": 1900000, "specs": {...} },
-        "mainboard":{ "product_id": 43, "product_name": "Gigabyte H610M S2H DDR4", "price": 1300000 },
-        "ram":      { "product_id": 20, "product_name": "Corsair Vengeance 16GB DDR4", "price": 1800000 },
-        "gpu":      { "product_id": 15, "product_name": "Sapphire Pulse RX 6600 8GB", "price": 5200000 },
-        "storage":  { "..." },
-        "cooler":   { "..." },
-        "psu":      { "..." },
-        "case":     { "..." }
-      },
-      "estimated_total_cost": 13480000,
-      "cost_over_budget": -1520000,
-      "compatibility": {
-        "compatibility_score": 100,
-        "is_compatible": true,
-        "checks": [ ... 7 quy tắc ... ]
-      }
-    },
-    "explanation": "Chúng tôi đề xuất cấu hình này vì nó đáp ứng tốt nhu cầu gaming..."
-  }
-}
-```
-
-### Sơ Đồ Luồng Lỗi
-
-```
-Lỗi có thể xảy ra tại:          Phản hồi trả về:
-─────────────────────────────    ─────────────────────────────────────────
-Bước 0: query rỗng           →  HTTP 400 "Query is required"
-Bước 1: không tìm ra budget  →  HTTP 500 "Vui lòng cho biết ngân sách..."
-Bước 3: không tìm ra CPU     →  HTTP 500 "No CPU found within budget"
-Bước 3: không tìm mainboard  →  HTTP 500 "No compatible Mainboard found"
-Bước 3: không tìm RAM        →  HTTP 500 "No compatible RAM found"
-Bước 3: không tìm Storage    →  HTTP 500 "No Storage found within budget"
-Bước 3: không tìm Cooler     →  HTTP 500 "No compatible Cooler found"
-Bước 3: không tìm PSU        →  HTTP 500 "No suitable PSU found"
-Bước 3: không tìm Case       →  HTTP 500 "No suitable Case found"
-Bước 4: Groq lỗi             →  Tự động dùng mock explanation (không crash)
-```
-
----
-
-## Dịch Vụ AI & Chế Độ Mock
-
-### Chế Độ Mock (`USE_MOCK_AI=true`)
-
-Khi `USE_MOCK_AI=true` trong file `.env`, hệ thống không gọi Gemini API. Thay vào đó dùng logic regex để phân tích tiếng Việt.
-
-**Phân Tích Ngân Sách** — `parseBudgetFromQuery(query)`:
-| Cú pháp nhập | Kết quả |
-|--------------|---------|
-| `"25 triệu"` | 25.000.000 |
-| `"25triệu"` | 25.000.000 |
-| `"25tr"` | 25.000.000 |
-| `"25000000"` | 25.000.000 |
-| `"40,000,000"` | 40.000.000 |
-
-**Nhận Diện Loại Build** — `detectBuildType(query)` — kiểm tra theo thứ tự ưu tiên:
-| Thứ tự | Từ khóa nhận diện | Kết quả |
-|--------|-------------------|---------|
-| 1 | (game/gaming) + (3d/render/đồ họa) cùng lúc | `gaming_workstation` |
-| 2 | stream, obs, twitch, youtube live, phat song | `streaming` |
-| 3 | edit, chinh sua, premiere, davinci, photoshop | `editing` |
-| 4 | ai, machine learning, pytorch, tensorflow | `ai_ml` |
-| 5 | server, nas, luu tru, home server, plex | `home_server` |
-| 6 | re nhat, tiet kiem, budget, gia re | `budget` |
-| 7 | gaming, game, chien game, fps, moba, aaa | `gaming` |
-| 8 | workstation, do hoa, render, 3d, kien truc | `workstation` |
-| 9 | van phong, office, hoc, word, excel | `office` |
-| 10 | (mặc định) | `gaming` |
-
-**Ưu Tiên CPU/GPU Mặc Định Theo Loại Build:**
-| Build Type | cpuPreference | gpuPreference |
-|-----------|---------------|---------------|
-| gaming | performance | performance |
-| workstation | performance | balanced |
-| gaming_workstation | performance | performance |
-| streaming | performance | performance |
-| editing | performance | balanced |
-| ai_ml | performance | performance |
-| office | balanced | **none** |
-| home_server | balanced | **none** |
-| budget | **budget** | **budget** |
-
-### Chế Độ AI Thật (`USE_MOCK_AI=false`)
-
-Yêu cầu `GROQ_API_KEY` hợp lệ trong `.env`. Dùng model `llama-3.3-70b-versatile` qua Groq API.
-
-**analyzeRequest** — Groq phân tích câu hỏi và trả về JSON:
+Response lỗi (thiếu ngân sách):
 ```json
 {
-  "intent": "build_pc",
-  "buildType": "gaming",
-  "budget": 25000000,
-  "cpuPreference": "balanced",
-  "gpuPreference": "performance",
-  "storageSize": 500,
-  "confidence": 0.95,
-  "explanation": "Build PC gaming với ngân sách 25 triệu đồng"
+  "success": false,
+  "message": "Vui lòng cho biết ngân sách. Ví dụ: 'Build PC gaming 25 triệu' hoặc 'PC workstation 40 triệu'"
 }
 ```
 
-**generateBuildExplanation** — Groq viết đoạn văn 3-4 câu tiếng Việt giải thích về bộ PC đã chọn, lý do chọn, điểm mạnh và lưu ý.
+---
 
-> **Tốc độ thực tế:** ~1-1.3 giây cho toàn bộ quy trình (phân tích + auto-build + giải thích).
+## 10. Luồng Hoạt Động: POST /api/ai/build
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ BƯỚC 1: Nhận request                                    │
+│   { query: "Build PC gaming 25 triệu" }                 │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│ BƯỚC 2: aiService.analyzeRequest(query)                 │
+│                                                         │
+│  Groq mode: Gọi Llama 3.3 phân tích → JSON             │
+│  Mock mode: Regex detect budget + buildType             │
+│                                                         │
+│  Output: { buildType, budget, cpuPref, gpuPref }        │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│ BƯỚC 3: autoBuildService.autoBuild(budget, preferences) │
+│                                                         │
+│  3a. Tính budget allocation theo buildType              │
+│      vd: gaming → gpu=34%, cpu=22%, mainboard=10%...    │
+│                                                         │
+│  3b. Lấy sản phẩm từ PRODUCT_SPEC (8 loại song song)   │
+│      SELECT PRODUCT JOIN PRODUCT_SPEC                   │
+│      → pivot rows → { specs: { socket, cores, tdp } }  │
+│                                                         │
+│  3c. Chọn linh kiện theo thứ tự:                        │
+│      CPU → Mainboard (khớp socket)                      │
+│         → RAM (khớp ram_type)                           │
+│         → GPU (nếu không phải office/home_server)       │
+│         → Storage                                       │
+│         → Cooler (khớp socket + tdp)                    │
+│         → PSU (đủ wattage)                              │
+│         → Case (vừa GPU + Cooler)                       │
+│                                                         │
+│  3d. Kiểm tra 7 quy tắc tương thích                     │
+│      → compatibility_score                              │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│ BƯỚC 4: aiService.generateBuildExplanation()            │
+│                                                         │
+│  Groq mode: Gọi Llama 3.3 viết 3-4 câu tiếng Việt      │
+│  Mock mode: Tạo câu mẫu từ template                     │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│ BƯỚC 5: Trả kết quả                                     │
+│   { query, analysis, build, explanation }               │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Thuật Toán Chọn Linh Kiện
+
+| Loại | Tiêu chí chọn (trong budget) |
+|---|---|
+| CPU `performance` | Nhiều core nhất |
+| CPU `budget` | Rẻ nhất |
+| CPU `balanced` | Core/giá tốt nhất |
+| GPU `performance` | VRAM nhiều nhất |
+| GPU `budget` | Rẻ nhất |
+| Mainboard | Rẻ nhất có đúng socket |
+| RAM | Capacity lớn nhất, tie-break bằng speed |
+| Storage | Ưu tiên đủ dung lượng yêu cầu, tie-break bằng speed |
+| PSU | Rẻ nhất có đủ wattage |
+| Cooler | Rẻ nhất hỗ trợ socket + đủ TDP |
+| Case | Rẻ nhất vừa GPU + Cooler |
 
 ---
 
-## Thuật Toán Auto-Build
+## 11. Dịch Vụ AI & Chế Độ Mock
 
-### Phân Bổ Ngân Sách Theo Mục Đích (9 Loại Build)
+### Groq API (chế độ thực)
 
-| Linh Kiện | gaming | workstation | gaming_workstation | streaming | editing | ai_ml | office | home_server | budget |
-|-----------|--------|-------------|-------------------|-----------|---------|-------|--------|-------------|--------|
-| CPU | 22% | 28% | 25% | 26% | 28% | 20% | 25% | 20% | 22% |
-| Mainboard | 10% | 12% | 10% | 10% | 10% | 10% | 20% | 15% | 18% |
-| RAM | 12% | 20% | 16% | 14% | 22% | 18% | 15% | 25% | 15% |
-| GPU | **34%** | 18% | 28% | 28% | 14% | **36%** | **0%** | **0%** | 20% |
-| Storage | 8% | 10% | 9% | 8% | **14%** | 8% | 15% | **25%** | 12% |
-| PSU | 7% | 6% | 6% | 7% | 6% | 5% | 10% | 10% | 8% |
-| Cooler | 4% | 3% | 3% | 4% | 3% | 2% | 5% | 3% | 3% |
-| Case | 3% | 3% | 3% | 3% | 3% | 1% | 10% | 2% | 2% |
+- Model: `llama-3.3-70b-versatile`
+- Free tier: 14.400 request/ngày, 6.000 token/phút
+- Tốc độ: ~1-2 giây/request
 
-**In đậm** = trọng tâm phân bổ của loại build đó.
+### Mock Mode (không cần API key)
 
-### Logic Chọn Linh Kiện
+Bật trong `.env`:
+```
+USE_MOCK_AI=true
+```
 
-1. **CPU** — Lọc theo giá ≤ ngân sách CPU, sau đó:
-   - `performance`: sắp xếp theo số nhân (nhiều nhất)
-   - `budget`: sắp xếp theo giá (rẻ nhất)
-   - `balanced`: sắp xếp theo tỉ lệ số nhân/giá
+Khi mock:
+- `analyzeRequest()` → dùng regex detect budget + buildType
+- `generateBuildExplanation()` → trả template string cố định
+- Tốc độ instant, không tốn quota
 
-2. **Mainboard** — Lọc giá ≤ ngân sách VÀ `socket === cpu.specs.socket`, chọn rẻ nhất
+### File cấu hình
 
-3. **RAM** — Lọc giá ≤ ngân sách VÀ `type === mainboard.specs.ram_type`, ưu tiên dung lượng lớn, sau đó tốc độ
-
-4. **GPU** (bỏ qua nếu văn phòng hoặc gpuPreference=none) — Lọc theo giá ≤ ngân sách:
-   - `performance`: sắp xếp theo VRAM (nhiều nhất)
-   - `budget`: sắp xếp theo giá (rẻ nhất)
-   - `balanced`: sắp xếp theo VRAM/giá
-
-5. **Storage** — Lọc giá ≤ ngân sách, ưu tiên dung lượng ≥ preferredSize, sau đó tốc độ đọc/ghi
-
-6. **Tản Nhiệt** — Lọc giá ≤ ngân sách VÀ socket nằm trong `supported_sockets` VÀ `max_tdp >= cpu.tdp`
-
-7. **PSU** — Tính `wattage_cần = (cpu.tdp + gpu.tdp) × 1.3`, lọc giá ≤ ngân sách VÀ `wattage >= wattage_cần`
-
-8. **Case** — Lọc giá ≤ ngân sách VÀ `max_gpu_length_mm >= gpu.length_mm` VÀ `max_cooler_height_mm >= cooler.height_mm`
-
-### Sau Khi Chọn Xong
-- Tính `estimated_total_cost` (tổng giá tất cả linh kiện)
-- Tính `cost_over_budget` (tổng - ngân sách; âm = còn dư ngân sách)
-- Chạy `CompatibilityService.checkBuildCompatibility()` để lấy điểm tương thích cuối cùng
+| File | Mục đích |
+|---|---|
+| `src/services/aiService.js` | Groq client, analyzeRequest, generateExplanation, orchestrate |
+| `src/services/autoBuildService.js` | Budget allocation, chọn linh kiện, kiểm tra tương thích |
+| `src/models/specificationModelV2.js` | Query PRODUCT_SPEC, pivot key-value → object |
+| `src/utils/compatibilityRules.js` | Định nghĩa 7 quy tắc tương thích |
+| `src/services/compatibilityService.js` | Thực thi kiểm tra, tính điểm |
 
 ---
 
-## Luồng Xử Lý
+## 12. Cài Đặt & Chạy Dự Án
 
-### Toàn Bộ Quy Trình Build PC bằng AI
-```
-Người dùng: "Build PC gaming 25 triệu"
-        │
-        ▼
-[POST /api/ai/build]
-        │
-        ▼
-aiService.orchestrateBuildPC("Build PC gaming 25 triệu")
-        │
-   ┌────▼────┐
-   │ BƯỚC 1  │ analyzeRequest(query)
-   │         │──► parseBudgetFromQuery → 25.000.000đ
-   │         │──► detectBuildType → "gaming"
-   │         │──► return { budget: 25M, buildType: "gaming", cpuPref: "performance", ... }
-   └────┬────┘
-        │
-   ┌────▼────┐
-   │ BƯỚC 2  │ AutoBuildService.autoBuild(25M, { purpose: "gaming", ... })
-   │         │──► Phân bổ: cpu=5.5M gpu=9M ram=3M mainboard=2M ...
-   │         │──► DB: lấy tất cả CPU, Mainboard, RAM, GPU, ...
-   │         │──► Chọn CPU: i5-13400F (4.5M, 6 nhân, LGA1700) ✓
-   │         │──► Chọn Mainboard: B660M DDR4 (1.8M, LGA1700) ✓
-   │         │──► Chọn RAM: 16GB DDR4-3200 (1.5M) ✓
-   │         │──► Chọn GPU: RTX 3060 (7.5M, 200W, 285mm) ✓
-   │         │──► Chọn Storage: 500GB NVMe (800K) ✓
-   │         │──► Chọn Tản nhiệt: Hyper 212 (480K, LGA1700, TDP 150W) ✓
-   │         │──► PSU: wattage_cần = (65+200)×1.3 = 345W → 650W Corsair (700K) ✓
-   │         │──► Case: GPU 285mm, tản nhiệt 155mm → ATX case (700K) ✓
-   │         │──► Tổng: 16.280.000đ (tiết kiệm: 8.720.000đ)
-   │         │──► CompatibilityService → điểm: 100/100 ✓
-   └────┬────┘
-        │
-   ┌────▼────┐
-   │ BƯỚC 3  │ generateBuildExplanation(query, build)
-   │         │──► "[MOCK] Đây là bộ PC gaming được tối ưu..."
-   └────┬────┘
-        │
-        ▼
-Trả kết quả đầy đủ về cho client
-```
+### Yêu cầu
 
-### Luồng Kiểm Tra Tương Thích
-```
-POST /api/compatibility/check  { cpuId, mainboardId, ramId, gpuId, ... }
-        │
-        ▼
-CompatibilityService.checkBuildCompatibility(componentIds)
-        │
-        ├─► Lấy 8 linh kiện từ DB
-        │
-        ├─► Quy tắc 1: CPU_SOCKET_MATCH
-        │     cpu.specs.socket === mainboard.specs.socket?
-        │     LGA1700 === LGA1700 → ĐẠT ✓
-        │
-        ├─► Quy tắc 2: RAM_TYPE_SUPPORT
-        │     ram.specs.type === mainboard.specs.ram_type?
-        │     DDR4 === DDR4 → ĐẠT ✓
-        │
-        ├─► Quy tắc 3: PSU_WATTAGE_SUFFICIENT
-        │     psu.wattage >= (cpu.tdp + gpu.tdp) × 1.3?
-        │     650W >= 345W → ĐẠT ✓
-        │
-        ├─► Quy tắc 4: COOLER_SOCKET_SUPPORT
-        │     cooler.supported_sockets.includes(cpu.socket)?
-        │     ["LGA1700",...].includes("LGA1700") → ĐẠT ✓
-        │
-        ├─► Quy tắc 5: COOLER_TDP_SUPPORT
-        │     cooler.max_tdp >= cpu.tdp?
-        │     150W >= 65W → ĐẠT ✓
-        │
-        ├─► Quy tắc 6: GPU_CASE_SIZE_FIT
-        │     case.max_gpu_length_mm >= gpu.length_mm?
-        │     380mm >= 285mm → ĐẠT ✓
-        │
-        └─► Quy tắc 7: COOLER_CASE_SIZE_FIT
-              case.max_cooler_height_mm >= cooler.height_mm?
-              165mm >= 155mm → ĐẠT ✓
+- Node.js ≥ 18
+- SQL Server đang chạy với database `PCComponentStore`
 
-Điểm = 100 - (0 lỗi × 25) - (0 cảnh báo × 10) = 100
-```
+### Các bước
 
----
-
-## Các Trường Hợp Test & Ví Dụ
-
-### Kịch Bản 1: PC Gaming 25 triệu
 ```bash
-curl -X POST http://localhost:5000/api/ai/build \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Build PC gaming 25 trieu"}'
-```
-**Kết quả thực tế (Groq):** budget=25M, buildType=gaming, tổng=**15.28M**, điểm=**100/100**, thời gian≈1.3s
+# 1. Clone về
+git clone <repo-url>
+cd Backend
 
-Linh kiện được chọn:
-- CPU: Intel Core i3-12100 (1.9M, LGA1700)
-- Mainboard: Gigabyte H610M S2H DDR4 (1.3M)
-- RAM: Corsair Vengeance 16GB DDR4 (1.8M)
-- GPU: Gigabyte RX 7600 8GB (7.5M)
-- Storage: Kingston NV2 500GB NVMe (950K)
-- Cooler: ID-Cooling SE-214-XT (480K)
-- PSU: Xigmatek FURY 400W Bronze (650K)
-- Case: Deepcool MATREXX 30 SI (700K)
-
-### Kịch Bản 2: PC Gaming 50 triệu (không dấu)
-```bash
-curl -X POST http://localhost:5000/api/ai/build \
-  -H "Content-Type: application/json" \
-  -d '{"query": "build pc chien game 50tr"}'
-```
-**Kết quả mong đợi:** budget=50M, buildType=gaming, tổng≈35M, điểm=100
-
-### Kịch Bản 3: Workstation 40 triệu
-```bash
-curl -X POST http://localhost:5000/api/ai/build \
-  -H "Content-Type: application/json" \
-  -d '{"query": "PC workstation 40 trieu de render 3D"}'
-```
-**Kết quả mong đợi:** budget=40M, buildType=workstation, CPU/RAM được ưu tiên nhiều hơn, điểm=100
-
-### Kịch Bản 4: PC Văn Phòng 10 triệu
-```bash
-curl -X POST http://localhost:5000/api/ai/build \
-  -H "Content-Type: application/json" \
-  -d '{"query": "PC van phong 10 trieu"}'
-```
-**Kết quả thực tế (Groq):** budget=10M, buildType=office, KHÔNG có GPU rời, tổng=**6.23M**, điểm=**100/100**, thời gian≈1s
-
-### Test Kiểm Tra Tương Thích
-```bash
-curl -X POST http://localhost:5000/api/compatibility/check \
-  -H "Content-Type: application/json" \
-  -d '{
-    "cpuId": 1,
-    "mainboardId": 10,
-    "ramId": 20,
-    "gpuId": 30,
-    "storageId": 40,
-    "psuId": 50,
-    "coolerId": 60,
-    "caseId": 70
-  }'
-```
-
-### Các Trường Hợp Lỗi
-```bash
-# Không có ngân sách
-curl -X POST http://localhost:5000/api/ai/build \
-  -d '{"query": "build PC gaming"}'
-# Lỗi: "Vui lòng cho biết ngân sách. Ví dụ: Build PC gaming 25 triệu"
-
-# Thiếu query
-curl -X POST http://localhost:5000/api/ai/build \
-  -d '{}'
-# Lỗi 400: "Query is required"
-```
-
----
-
-## Cài Đặt & Chạy Dự Án
-
-### Yêu Cầu Hệ Thống
-- Node.js 18+
-- MSSQL Server (cục bộ, cổng 1433)
-- Database `PCComponentStore` đã được tạo
-
-### Cài Đặt & Khởi Động
-```bash
+# 2. Cài dependencies
 npm install
-npm start          # ⚠️ PHẢI dùng npm start, không dùng node src/app.js
-# Server chạy tại http://localhost:5000
-# Swagger UI: http://localhost:5000/api-docs
+
+# 3. Tạo file .env
+cp .env.example .env
+# Chỉnh sửa DB_SERVER, DB_USER, DB_PASSWORD, GROQ_API_KEY
+
+# 4. Chạy SQL seed (theo thứ tự trong SSMS)
+#    - information.sql
+#    - migrations/seed_ai_build_data.sql
+
+# 5. Khởi động server
+npm start
 ```
 
-> **Lưu ý:** Entry point thực tế là `src/server.js` (được gọi qua `npm start`). Chạy trực tiếp `node src/app.js` sẽ bị treo ở bước kết nối database.
-
-### Seed Dữ Liệu AI Build
-
-**Bước 1 — Script Node.js** (tạo category + sản phẩm cơ bản):
-```bash
-node scripts/setup-ai-build.js
-```
-
-**Bước 2 — File SQL mở rộng** (chạy trong SSMS theo thứ tự):
-```sql
--- Chạy file 1 trước:
-migrations/seed_more_products.sql       -- ~40 sản phẩm mới
--- Sau đó chạy file 2:
-migrations/seed_extended_products.sql   -- ~65 sản phẩm bổ sung
-```
-
-Tổng sản phẩm sau khi seed đầy đủ (~130+ sản phẩm):
-| Danh mục | Số sản phẩm | Dải giá |
-|----------|------------|---------|
-| CPU | ~15 | 150K (box cooler) → 18M (R9 7950X) |
-| VGA | ~12 | 1.5M (GT 1030) → 48M (RTX 4090) |
-| Mainboard | ~15 | 1.2M (H610M) → 14M (ROG Crosshair) |
-| RAM | ~14 | 450K (8GB DDR4) → 12M (96GB DDR5) |
-| Storage | ~14 | 350K (120GB SATA) → 6.5M (2TB NVMe) |
-| PSU | ~12 | 550K (450W) → 10M (1200W Platinum) |
-| Cooler | ~15 | 150K (Stock Intel) → 5.5M (AIO 360mm) |
-| Case | ~15 | 400K (budget mATX) → 5M (Full Tower) |
-
----
-
-## Cấu Hình Môi Trường
+### File .env cần thiết
 
 ```env
-# Server
-PORT=5000
-
-# Kết nối Database
+# Database
+DB_SERVER=localhost
 DB_USER=sa
-DB_PASSWORD=12345
-DB_SERVER=127.0.0.1
-DB_PORT=1433
+DB_PASSWORD=your_password
 DB_NAME=PCComponentStore
 
-# JWT
-JWT_SECRET=SieuCapMatKhau
-JJWT_EXPIRES_IN=1d
+# AI
+GROQ_API_KEY=your_groq_api_key_here   # Lấy tại console.groq.com
+USE_MOCK_AI=false                      # Đặt true để test không cần API key
 
-# Bảo mật
-BCRYPT_SALT_ROUNDS=10
-
-# Cloudinary (upload ảnh)
-CLOUDINARY_CLOUD_NAME=ten_cloud_cua_ban
-CLOUDINARY_API_KEY=api_key_cua_ban
-CLOUDINARY_API_SECRET=api_secret_cua_ban
-
-# AI (Groq - miễn phí tại console.groq.com)
-GROQ_API_KEY=your_groq_api_key
-USE_MOCK_AI=false   # false = gọi Groq API thật (khuyến nghị)
-                    # true = chế độ mock, không cần API key (dùng khi offline/dev)
+# Server
+PORT=5000
+JWT_SECRET=your_jwt_secret
 ```
 
-### Chuyển Đổi Giữa Mock và AI Thật
-```bash
-# Môi trường phát triển / kiểm thử (không cần API key, hoạt động offline):
-USE_MOCK_AI=true
+### Lấy Groq API Key (miễn phí)
 
-# Môi trường production với AI thật (khuyến nghị):
-USE_MOCK_AI=false
-GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
-```
-
-### Lấy Groq API Key (Miễn Phí)
-1. Truy cập [console.groq.com](https://console.groq.com)
-2. Đăng nhập bằng Google
-3. Vào mục **API Keys** ở thanh menu bên trái
-4. Click **Create API Key**, đặt tên tùy ý
-5. Sao chép key (dạng `gsk_...`) vào `.env` dưới tên `GROQ_API_KEY`
-6. Đặt `USE_MOCK_AI=false`
-
-> **Giới hạn free tier Groq:** 14.400 request/ngày, ~6.000 token/phút — đủ dùng cho dự án học tập và production quy mô nhỏ.
-
-> **Fallback tự động:** Nếu Groq gặp lỗi (hết quota, mất mạng...), hệ thống tự động chuyển sang chế độ mock — không bao giờ crash.
+1. Truy cập `console.groq.com`
+2. Đăng ký / đăng nhập
+3. Vào **API Keys** → **Create API Key**
+4. Copy key dán vào `.env`
 
 ---
 
-## Cấu Trúc Thư Mục
+## 13. Test Nhanh
+
+### Kiểm tra server chạy
 
 ```
-src/
-├── app.js                          # Điểm khởi chạy
-├── config/
-│   └── db.js                       # Kết nối MSSQL
-├── controllers/
-│   ├── aiController.js             # Xử lý các endpoint AI
-│   ├── compatibilityController.js  # Xử lý kiểm tra tương thích
-│   ├── productController.js
-│   └── ...
-├── models/
-│   ├── specificationModelV2.js     # CRUD specs_json + truy vấn theo danh mục
-│   ├── productModel.js
-│   └── ...
-├── routes/
-│   ├── aiRoute.js                  # /api/ai/*
-│   ├── compatibilityRoute.js       # /api/compatibility/*
-│   ├── specificationRouteV2.js     # /api/specs/v2/*
-│   └── rootRouter.js               # Tổng hợp tất cả route
-├── services/
-│   ├── aiService.js                # Groq + mock, điều phối quy trình
-│   ├── autoBuildService.js         # Phân bổ ngân sách + chọn linh kiện
-│   └── compatibilityService.js     # Kiểm tra 7 quy tắc tương thích
-└── utils/
-    ├── compatibilityRules.js       # Định nghĩa các quy tắc tương thích
-    └── specSchemas.js              # Schema JSON specs theo danh mục
+GET http://localhost:5000/api/ai/test
+```
 
-scripts/
-└── setup-ai-build.js               # Script cài đặt DB + seed dữ liệu
+### Test build PC (Swagger UI)
 
-migrations/
-└── ...                             # Các file migration SQL
+Truy cập `http://localhost:5000/api-docs` → mục **AI** → `POST /api/ai/build`
+
+### Các query mẫu
+
+| Query | Build type dự kiến | Ngân sách |
+|---|---|---|
+| "Build PC gaming 15 triệu" | gaming | 15M |
+| "PC workstation render 3D 40 triệu" | workstation | 40M |
+| "Máy tính văn phòng 10 triệu" | office | 10M |
+| "Build PC streaming 30 củ" | streaming | 30M |
+| "PC AI machine learning 60 triệu" | ai_ml | 60M |
+| "Máy tính vừa game vừa làm đồ họa 50 triệu" | gaming_workstation | 50M |
+| "PC rẻ nhất có thể 8 triệu" | budget | 8M |
+
+### Query kiểm tra DB (chạy trong SSMS)
+
+```sql
+-- Kiểm tra số sản phẩm có specs theo từng danh mục
+SELECT c.name AS category, COUNT(DISTINCT p.product_id) AS products_with_specs
+FROM PRODUCT p
+JOIN CATEGORY c ON p.category_id = c.category_id
+JOIN PRODUCT_SPEC ps ON p.product_id = ps.product_id
+GROUP BY c.name
+ORDER BY c.name;
+
+-- Xem specs của 1 sản phẩm
+SELECT spec_name, spec_value
+FROM PRODUCT_SPEC
+WHERE product_id = 1;
 ```
