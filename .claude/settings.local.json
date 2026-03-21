@@ -11,7 +11,11 @@
       "Bash(cmd /c \"taskkill /F /IM node.exe 2>&1 || echo no node running\")",
       "Bash(cmd /c \"tasklist /FI \"\"PID eq 6948\"\" 2>&1\")",
       "Bash(cmd /c \"tasklist | findstr 6948\")",
-      "Bash(cmd /c \"taskkill /PID 6948 /F 2>&1\")"
+      "Bash(cmd /c \"taskkill /PID 6948 /F 2>&1\")",
+      "Bash(npm start:*)",
+      "Bash(curl -s \"https://pccomponentstore-cne8dndef4f0gthx.southeastasia-01.azurewebsites.net/api/products\")",
+      "Bash(node -e \"let d='''''''';process.stdin.on\\(''''data'''',c=>d+=c\\);process.stdin.on\\(''''end'''',\\(\\)=>{const p=JSON.parse\\(d\\);p.data.forEach\\(x=>console.log\\(x.product_id+''''|''''+x.category_id+''''|''''+x.category_name+''''|''''+x.price+''''|''''+x.name\\)\\)}\\)\")",
+      "Bash(node scripts/seed_specs_via_api.js)"
     ]
   }
 }

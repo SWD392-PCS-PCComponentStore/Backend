@@ -362,18 +362,30 @@ class AutoBuildService {
 
   /**
    * Select compatible Cooler (supports CPU socket and TDP)
+   * Falls back to cheapest compatible cooler if nothing fits within budget
    */
   static async selectCompatibleCooler(coolers, cpu, budget) {
-    const compatible = coolers.filter((c) => {
+    const isCompatible = (c) => {
       const sockets = Array.isArray(c.specs.supported_sockets)
         ? c.specs.supported_sockets
         : [c.specs.supported_sockets];
-      return c.price <= budget && sockets.includes(cpu.specs.socket) && c.specs.max_tdp >= cpu.specs.tdp;
-    });
-    if (compatible.length === 0) return null;
-    // Sort by price (best value)
-    compatible.sort((a, b) => a.price - b.price);
-    return compatible[0];
+      return sockets.includes(cpu.specs.socket) && (c.specs.max_tdp || 9999) >= cpu.specs.tdp;
+    };
+
+    const withinBudget = coolers.filter((c) => c.price <= budget && isCompatible(c));
+    if (withinBudget.length > 0) {
+      withinBudget.sort((a, b) => a.price - b.price);
+      return withinBudget[0];
+    }
+
+    // Fallback: cheapest compatible cooler regardless of budget
+    const anyCompatible = coolers.filter(isCompatible);
+    if (anyCompatible.length > 0) {
+      anyCompatible.sort((a, b) => a.price - b.price);
+      return anyCompatible[0];
+    }
+
+    return null;
   }
 
   /**
@@ -395,32 +407,64 @@ class AutoBuildService {
 
   /**
    * Select PSU with sufficient wattage
+   * Falls back to cheapest sufficient PSU if nothing fits within budget
    */
   static async selectSufficientPSU(psus, requiredWattage, budget) {
-    const compatible = psus.filter((p) => p.price <= budget && p.specs.wattage >= requiredWattage);
-    if (compatible.length === 0) return null;
-    // Sort by price (best value)
-    compatible.sort((a, b) => a.price - b.price);
-    return compatible[0];
+    const hasSufficientWattage = (p) => (p.specs.wattage || 0) >= requiredWattage;
+
+    const withinBudget = psus.filter((p) => p.price <= budget && hasSufficientWattage(p));
+    if (withinBudget.length > 0) {
+      withinBudget.sort((a, b) => a.price - b.price);
+      return withinBudget[0];
+    }
+
+    // Fallback: cheapest PSU with sufficient wattage regardless of budget
+    const anySufficient = psus.filter(hasSufficientWattage);
+    if (anySufficient.length > 0) {
+      anySufficient.sort((a, b) => a.price - b.price);
+      return anySufficient[0];
+    }
+
+    // Last resort: highest wattage available
+    if (psus.length > 0) {
+      return psus.slice().sort((a, b) => (b.specs.wattage || 0) - (a.specs.wattage || 0))[0];
+    }
+
+    return null;
   }
 
   /**
    * Select compatible Case (fits GPU and Cooler)
+   * Falls back to cheapest compatible case if nothing fits within budget
    */
   static async selectCompatibleCase(cases, gpu, cooler, budget) {
-    const compatible = cases.filter((c) => {
-      const gpuLength = gpu?.specs.length_mm || 0;
-      const coolerHeight = cooler?.specs.height_mm || 0;
-      return (
-        c.price <= budget &&
-        (!gpu || c.specs.max_gpu_length_mm >= gpuLength) &&
-        (!cooler || c.specs.max_cooler_height_mm >= coolerHeight)
-      );
-    });
-    if (compatible.length === 0) return null;
-    // Sort by price
-    compatible.sort((a, b) => a.price - b.price);
-    return compatible[0];
+    const gpuLength = gpu?.specs.length_mm || 0;
+    const coolerHeight = cooler?.specs.height_mm || 0;
+
+    const fitsPhysically = (c) =>
+      (!gpu || (c.specs.max_gpu_length_mm || 9999) >= gpuLength) &&
+      (!cooler || (c.specs.max_cooler_height_mm || 9999) >= coolerHeight);
+
+    // Try within budget first
+    const withinBudget = cases.filter((c) => c.price <= budget && fitsPhysically(c));
+    if (withinBudget.length > 0) {
+      withinBudget.sort((a, b) => a.price - b.price);
+      return withinBudget[0];
+    }
+
+    // Fallback: cheapest physically-compatible case regardless of budget
+    const anyCompatible = cases.filter(fitsPhysically);
+    if (anyCompatible.length > 0) {
+      anyCompatible.sort((a, b) => a.price - b.price);
+      return anyCompatible[0];
+    }
+
+    // Last resort: cheapest case available
+    if (cases.length > 0) {
+      return cases.slice().sort((a, b) => a.price - b.price)[0];
+    }
+
+    return null;
   }
 
   /**
