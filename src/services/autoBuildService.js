@@ -231,6 +231,53 @@ class AutoBuildService {
         throw new Error("No suitable Case found");
       }
 
+      // Budget optimization: upgrade components with remaining budget
+      // Priority: GPU → CPU (same socket) → RAM (same type)
+      let spent = Object.values(selectedBuild.components).reduce((s, c) => s + (c?.price || 0), 0);
+      let remaining = budget - spent;
+
+      if (remaining > 0 && gpuPreference !== "none") {
+        const newGpuBudget = (selectedBuild.components.gpu?.price || 0) + remaining;
+        const upgradedGpu = gpus
+          .filter((g) => g.price <= newGpuBudget && g.price > (selectedBuild.components.gpu?.price || 0))
+          .sort((a, b) => b.price - a.price)[0];
+        if (upgradedGpu) {
+          remaining -= upgradedGpu.price - (selectedBuild.components.gpu?.price || 0);
+          selectedBuild.components.gpu = upgradedGpu;
+        }
+      }
+
+      if (remaining > 0) {
+        const currentSocket = selectedBuild.components.cpu?.specs.socket;
+        const newCpuBudget = (selectedBuild.components.cpu?.price || 0) + remaining;
+        const upgradedCpu = cpus
+          .filter((c) =>
+            c.price <= newCpuBudget &&
+            c.price > (selectedBuild.components.cpu?.price || 0) &&
+            c.specs.socket === currentSocket
+          )
+          .sort((a, b) => b.price - a.price)[0];
+        if (upgradedCpu) {
+          remaining -= upgradedCpu.price - (selectedBuild.components.cpu?.price || 0);
+          selectedBuild.components.cpu = upgradedCpu;
+        }
+      }
+
+      if (remaining > 0) {
+        const ramType = selectedBuild.components.mainboard?.specs.ram_type;
+        const newRamBudget = (selectedBuild.components.ram?.price || 0) + remaining;
+        const upgradedRam = rams
+          .filter((r) =>
+            r.price <= newRamBudget &&
+            r.price > (selectedBuild.components.ram?.price || 0) &&
+            r.specs.type === ramType
+          )
+          .sort((a, b) => b.price - a.price)[0];
+        if (upgradedRam) {
+          selectedBuild.components.ram = upgradedRam;
+        }
+      }
+
       // Calculate total cost
       selectedBuild.estimated_total_cost = Object.keys(selectedBuild.components)
         .filter((k) => k !== "gpu" || preferences.gpuPreference !== "none")
@@ -299,31 +346,26 @@ class AutoBuildService {
 
     if (withinBudget.length === 0) return null;
 
-    // Sort by preference
     let sorted = [...withinBudget];
 
     if (category === "cpu") {
       if (preference === "budget") {
         sorted.sort((a, b) => a.price - b.price);
       } else if (preference === "performance") {
-        sorted.sort((a, b) => (b.specs.cores || 0) - (a.specs.cores || 0));
+        // Highest price = best CPU within budget
+        sorted.sort((a, b) => b.price - a.price);
       } else {
-        // balanced - best cores per dollar
-        sorted.sort(
-          (a, b) =>
-            (b.specs.cores || 0) / (b.price || 1) - (a.specs.cores || 0) / (a.price || 1)
+        // balanced - most cores within budget, then price as tiebreak
+        sorted.sort((a, b) =>
+          (b.specs.cores || 0) - (a.specs.cores || 0) || b.price - a.price
         );
       }
     } else if (category === "gpu") {
       if (preference === "budget") {
         sorted.sort((a, b) => a.price - b.price);
-      } else if (preference === "performance") {
-        sorted.sort((a, b) => (b.specs.memory_gb || 0) - (a.specs.memory_gb || 0));
       } else {
-        sorted.sort(
-          (a, b) =>
-            (b.specs.memory_gb || 0) / (b.price || 1) - (a.specs.memory_gb || 0) / (a.price || 1)
-        );
+        // performance or balanced - highest price = best GPU
+        sorted.sort((a, b) => b.price - a.price);
       }
     }
 
