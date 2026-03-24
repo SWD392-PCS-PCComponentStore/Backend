@@ -65,6 +65,30 @@ exports.getProductsByCategoryId = async (req, res) => {
     }
 }
 
+exports.getProductsByName = async (req, res) => {
+    try {
+        const name = typeof req.query.name === 'string' ? req.query.name.trim() : '';
+        if (!name) {
+            return res.status(400).json({
+                success: false,
+                error: 'name query is required'
+            });
+        }
+
+        const products = await productService.getProductsByName(name);
+        res.json({
+            success: true,
+            data: products
+        });
+    } catch (error) {
+        console.error('❌ Get products by name error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+}
+
 exports.createProduct = async (req, res) => {
     try {
         const { name, category_id, price } = req.body;
