@@ -90,7 +90,7 @@ router.post('/login', validateEmail, AuthController.login);
  * @swagger
  * /api/auth/google-login:
  *   post:
- *     summary: Login or auto-register by email and password
+ *     summary: Login with Google
  *     tags: [Auth]
  *     security: []
  *     requestBody:
@@ -101,21 +101,16 @@ router.post('/login', validateEmail, AuthController.login);
  *             type: object
  *             required:
  *               - email
- *               - password
  *             properties:
  *               email:
  *                 type: string
- *                 description: User email
+ *                 description: Google user email used to login or auto-register
  *                 example: demo.user@example.com
- *               password:
- *                 type: string
- *                 description: User password for login/register
- *                 example: 123456
  *     responses:
  *       200:
- *         description: Login/register successful
+ *         description: Returns token if user exists, otherwise creates user then returns token
  *       400:
- *         description: Invalid email/password input
+ *         description: Invalid input email
  */
 router.post('/google-login', validateEmail, AuthController.googleLogin);
 

@@ -25,8 +25,7 @@ class AuthController {
     static async googleLogin(req, res) {
         try {
             const email = req.body?.email;
-            const password = req.body?.password;
-            const result = await UserService.loginOrRegisterByEmailPassword(email, password);
+            const result = await UserService.loginWithGoogleEmail(email);
 
             res.status(200).json({ message: 'Google login successful', token: result.token, user: result.user });
         } catch (err) {
