@@ -15,6 +15,11 @@ exports.getProductsByCategoryId = async (categoryId) => {
     return result.recordset;
 }
 
+exports.getProductsByName = async (name) => {
+    const result = await Product.getByName(name);
+    return result.recordset;
+}
+
 exports.createProduct = async (productData) => {
     const result = await Product.create(productData);
     return result.recordset[0];

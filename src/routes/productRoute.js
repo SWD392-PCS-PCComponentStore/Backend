@@ -136,6 +136,43 @@ router.get("/category/:category_id", productController.getProductsByCategoryId);
 
 /**
  * @swagger
+ * /api/products/search:
+ *   get:
+ *     summary: Search products by name (partial, case-insensitive)
+ *     tags: [Products]
+ *     security: []
+ *     parameters:
+ *       - in: query
+ *         name: name
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Product name keyword
+ *         example: rtx
+ *     responses:
+ *       200:
+ *         description: List of products matching name keyword
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *       400:
+ *         description: Missing name query
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/search", productController.getProductsByName);
+
+/**
+ * @swagger
  * /api/products/{id}:
  *   get:
  *     summary: Get product by ID
