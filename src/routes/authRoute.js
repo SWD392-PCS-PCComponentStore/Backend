@@ -86,4 +86,37 @@ router.post('/register', validateEmail, validatePhone, AuthController.register);
  */
 router.post('/login', validateEmail, AuthController.login);
 
+/**
+ * @swagger
+ * /api/auth/google-login:
+ *   post:
+ *     summary: Login or auto-register by email and password
+ *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 description: User email
+ *                 example: demo.user@example.com
+ *               password:
+ *                 type: string
+ *                 description: User password for login/register
+ *                 example: 123456
+ *     responses:
+ *       200:
+ *         description: Login/register successful
+ *       400:
+ *         description: Invalid email/password input
+ */
+router.post('/google-login', validateEmail, AuthController.googleLogin);
+
 module.exports = router;
