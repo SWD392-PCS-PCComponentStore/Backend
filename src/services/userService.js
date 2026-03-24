@@ -1,15 +1,40 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/userModel');
 
 
 class UserService {
+    static getGoogleClientId() {
+        const candidates = [
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENTID,
+            process.env.GOOGLE_OAUTH_CLIENT_ID
+        ];
+
+        const clientId = candidates.find((value) => String(value || '').trim());
+        return String(clientId || '').trim();
+    }
+
     static sanitizeUser(user) {
         if (!user) {
             return user;
         }
         const { password, ...safeUser } = user;
         return safeUser;
+    }
+
+    static generateAccessToken(user) {
+        return jwt.sign(
+            {
+                userId: user.user_id,
+                email: user.email,
+                role: user.role
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+        );
     }
 
     static async register(userData) {
@@ -44,15 +69,120 @@ class UserService {
         if (!isMatch) {
             throw new Error('Invalid email or password');
         }
-        const token =jwt.sign(
-            {
-                userId: user.user_id,
-                email: user.email,
-                role: user.role
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: '1h' }
-        );
+        const token = UserService.generateAccessToken(user);
+        return { token, user: UserService.sanitizeUser(user) };
+    }
+
+    static async verifyGoogleIdToken(idToken) {
+        const token = String(idToken || '').trim();
+        if (!token) {
+            throw new Error('id_token is required');
+        }
+
+        const clientId = UserService.getGoogleClientId();
+        if (!clientId) {
+            throw new Error('Google OAuth is not configured (missing GOOGLE_CLIENT_ID)');
+        }
+
+        const googleClient = new OAuth2Client(clientId);
+        const ticket = await googleClient.verifyIdToken({
+            idToken: token,
+            audience: clientId
+        });
+
+        const payload = ticket.getPayload() || {};
+        if (!payload.email) {
+            throw new Error('Google token does not contain email');
+        }
+
+        if (!payload.email_verified) {
+            throw new Error('Google email is not verified');
+        }
+
+        const email = String(payload.email).trim().toLowerCase();
+        const name = String(payload.name || '').trim() || email.split('@')[0];
+        const avatar = String(payload.picture || '').trim() || null;
+
+        return { email, name, avatar };
+    }
+
+    static async loginOrCreateFromGoogleProfile(profile) {
+        let user = await User.findbyEmail(profile.email);
+        if (!user) {
+            const randomPassword = crypto.randomBytes(32).toString('hex');
+            const hashedPassword = await bcrypt.hash(
+                randomPassword,
+                parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10
+            );
+
+            user = await User.create({
+                name: profile.name,
+                email: profile.email,
+                password: hashedPassword,
+                avatar: profile.avatar
+            });
+        }
+
+        const token = UserService.generateAccessToken(user);
+        return { token, user: UserService.sanitizeUser(user) };
+    }
+
+    static async loginWithGoogle(idToken) {
+        const profile = await UserService.verifyGoogleIdToken(idToken);
+
+        return UserService.loginOrCreateFromGoogleProfile(profile);
+    }
+
+    static async loginWithGoogleEmail(emailInput, nameInput, avatarInput) {
+        const email = String(emailInput || '').trim().toLowerCase();
+        if (!email) {
+            throw new Error('email is required');
+        }
+
+        const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+        if (!gmailRegex.test(email)) {
+            throw new Error('Only Gmail address is accepted for this quick login mode');
+        }
+
+        const name = String(nameInput || '').trim() || email.split('@')[0];
+        const avatar = String(avatarInput || '').trim() || null;
+        const profile = { email, name, avatar };
+
+        return UserService.loginOrCreateFromGoogleProfile(profile);
+    }
+
+    static async loginOrRegisterByEmailPassword(emailInput, passwordInput, nameInput, avatarInput) {
+        const email = String(emailInput || '').trim().toLowerCase();
+        if (!email) {
+            throw new Error('email is required');
+        }
+
+        const password = String(passwordInput || '').trim();
+        if (!password) {
+            throw new Error('password is required');
+        }
+
+        let user = await User.findbyEmail(email);
+        if (!user) {
+            const hashedPassword = await bcrypt.hash(
+                password,
+                parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10
+            );
+
+            user = await User.create({
+                name: String(nameInput || '').trim() || email.split('@')[0],
+                email,
+                password: hashedPassword,
+                avatar: String(avatarInput || '').trim() || null
+            });
+        } else {
+            const isMatch = await bcrypt.compare(password, user.password || '');
+            if (!isMatch) {
+                throw new Error('Invalid email or password');
+            }
+        }
+
+        const token = UserService.generateAccessToken(user);
         return { token, user: UserService.sanitizeUser(user) };
     }
 

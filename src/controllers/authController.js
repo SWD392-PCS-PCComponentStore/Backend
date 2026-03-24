@@ -21,5 +21,17 @@ class AuthController {
             res.status(401).json({ error: err.message });
         }
     }
+
+    static async googleLogin(req, res) {
+        try {
+            const email = req.body?.email;
+            const password = req.body?.password;
+            const result = await UserService.loginOrRegisterByEmailPassword(email, password);
+
+            res.status(200).json({ message: 'Google login successful', token: result.token, user: result.user });
+        } catch (err) {
+            res.status(400).json({ error: err.message });
+        }
+    }
 }
 module.exports = AuthController;
