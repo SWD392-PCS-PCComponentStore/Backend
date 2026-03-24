@@ -91,9 +91,6 @@ router.post("/cod", authenticate, paymentController.createCodPayment);
  */
 router.patch("/confirm", authenticate, paymentController.confirmPaymentUpdate);
 
-router.get("/vnpay/ipn", paymentController.vnpayIpn);
-router.get("/vnpay/return", paymentController.vnpayReturn);
-
 router.get(
 	"/admin/pending-completion",
 	authenticate,
