@@ -139,11 +139,6 @@ class UserService {
             throw new Error('email is required');
         }
 
-        const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
-        if (!gmailRegex.test(email)) {
-            throw new Error('Only Gmail address is accepted for this quick login mode');
-        }
-
         const name = String(nameInput || '').trim() || email.split('@')[0];
         const avatar = String(avatarInput || '').trim() || null;
         const profile = { email, name, avatar };
