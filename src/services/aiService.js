@@ -73,9 +73,27 @@ const detectBuildType = (query) => {
   return "gaming";
 };
 
+const detectBrandPreferences = (query) => {
+  const q = query.toLowerCase();
+  let cpuBrand = null;
+  let gpuBrand = null;
+
+  if (/\bintel\b/.test(q)) cpuBrand = "Intel";
+  else if (/\bamd\b/.test(q) && !(/\bradeon\b|\brx\s*\d/.test(q))) cpuBrand = "AMD";
+
+  if (/\bnvidia\b|\brtx\b|\bgtx\b/.test(q)) gpuBrand = "NVIDIA";
+  else if (/\bradeon\b|\brx\s*\d/.test(q)) gpuBrand = "AMD";
+
+  // "amd" một mình có thể là cả CPU lẫn GPU, không rõ → không set
+  if (/\bamd\b/.test(q) && !cpuBrand && !gpuBrand) cpuBrand = "AMD";
+
+  return { cpuBrand, gpuBrand };
+};
+
 const mockAnalyzeRequest = (query) => {
   const budget = parseBudgetFromQuery(query);
   const buildType = detectBuildType(query);
+  const { cpuBrand, gpuBrand } = detectBrandPreferences(query);
   const purposeLabel = { gaming: "gaming", workstation: "làm việc/đồ họa", office: "văn phòng" };
 
   return {
@@ -84,6 +102,8 @@ const mockAnalyzeRequest = (query) => {
     budget,
     cpuPreference: buildType === "office" ? "budget" : "performance",
     gpuPreference: buildType === "office" ? "none" : "performance",
+    cpuBrand,
+    gpuBrand,
     storageSize: 500,
     confidence: budget ? 0.9 : 0.6,
     explanation: budget
@@ -157,11 +177,13 @@ Extract:
 3. "budget": number in VND (e.g. "25 triệu" = 25000000, "20tr" = 20000000, "15 củ" = 15000000)
 4. "cpuPreference": one of [budget, balanced, performance]
 5. "gpuPreference": one of [none, budget, balanced, performance] — use "none" for office/home_server
-6. "storageSize": number in GB - default 500
-7. "confidence": 0-1
-8. "explanation": one-line Vietnamese explanation
+6. "cpuBrand": one of ["Intel", "AMD", null] — if user mentions "Intel", "i5/i7/i9", set "Intel"; if "AMD", "Ryzen", set "AMD"; otherwise null
+7. "gpuBrand": one of ["NVIDIA", "AMD", null] — if user mentions "NVIDIA", "RTX", "GTX", set "NVIDIA"; if "Radeon", "RX", set "AMD"; otherwise null
+8. "storageSize": number in GB - default 500
+9. "confidence": 0-1
+10. "explanation": one-line Vietnamese explanation
 
-Example: {"intent":"build_pc","buildType":"gaming_workstation","budget":40000000,"cpuPreference":"performance","gpuPreference":"performance","storageSize":1000,"confidence":0.95,"explanation":"Build PC vừa chơi game vừa render 3D với ngân sách 40 triệu"}`,
+Example: {"intent":"build_pc","buildType":"gaming","budget":30000000,"cpuPreference":"performance","gpuPreference":"performance","cpuBrand":"AMD","gpuBrand":"NVIDIA","storageSize":500,"confidence":0.95,"explanation":"Build PC gaming AMD CPU + NVIDIA GPU 30 triệu"}`,
       },
       { role: "user", content: query },
     ]);
@@ -176,6 +198,8 @@ Example: {"intent":"build_pc","buildType":"gaming_workstation","budget":40000000
       budget: parsed.budget || null,
       cpuPreference: parsed.cpuPreference || "balanced",
       gpuPreference: parsed.gpuPreference || "performance",
+      cpuBrand: parsed.cpuBrand || null,
+      gpuBrand: parsed.gpuBrand || null,
       storageSize: parsed.storageSize || 500,
       confidence: parsed.confidence || 0.7,
       explanation: parsed.explanation || "Đã phân tích yêu cầu của bạn",
@@ -268,6 +292,8 @@ const orchestrateBuildPC = async (query) => {
     purpose:       config.purpose,
     cpuPreference: analysis.cpuPreference || config.cpuPref,
     gpuPreference: analysis.gpuPreference || config.gpuPref,
+    cpuBrand:      analysis.cpuBrand || null,
+    gpuBrand:      analysis.gpuBrand || null,
     storageSize:   analysis.storageSize || 500,
   };
 
@@ -275,10 +301,13 @@ const orchestrateBuildPC = async (query) => {
   const buildResult = await AutoBuildService.autoBuild(analysis.budget, preferences);
 
   if (!buildResult.success) {
-    throw new Error(
+    const err = new Error(
+      buildResult.message ||
       buildResult.error ||
-        "Không thể tạo cấu hình PC. Kiểm tra lại ngân sách hoặc thêm sản phẩm vào hệ thống."
+      "Không thể tạo cấu hình PC. Kiểm tra lại ngân sách hoặc thêm sản phẩm vào hệ thống."
     );
+    err.budget_too_low = buildResult.budget_too_low || false;
+    throw err;
   }
 
   const explanation = await generateBuildExplanation(query, buildResult.build);

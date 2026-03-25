@@ -31,10 +31,12 @@ class AutoBuildService {
   static async autoBuild(budget, preferences = {}) {
     try {
       const {
-        purpose = "gaming", // gaming, workstation, office
-        cpuPreference = "performance", // budget, performance, balanced
-        gpuPreference = "performance", // none, budget, performance, high-end
-        storageSize = 500, // GB
+        purpose = "gaming",
+        cpuPreference = "performance",
+        gpuPreference = "performance",
+        cpuBrand = null,   // "Intel" | "AMD" | null
+        gpuBrand = null,   // "NVIDIA" | "AMD" | null
+        storageSize = 500,
       } = preferences;
 
       // Calculate budget allocations
@@ -137,7 +139,7 @@ class AutoBuildService {
       }
 
       // Fetch all products by category
-      const [cpus, mainboards, rams, gpus, storages, psus, coolers, cases] = await Promise.all([
+      const [allCpus, mainboards, rams, allGpus, storages, psus, coolers, cases] = await Promise.all([
         this.getAllProductsByCategory("cpu"),
         this.getAllProductsByCategory("mainboard"),
         this.getAllProductsByCategory("ram"),
@@ -147,6 +149,25 @@ class AutoBuildService {
         this.getAllProductsByCategory("cooler_cpu"),
         this.getAllProductsByCategory("case"),
       ]);
+
+      // Filter by brand preference (fallback to all if no match found)
+      // GPU AMD = Sapphire/XFX/PowerColor/Gigabyte RX/Radeon — match by "RX" or "Radeon" keywords
+      // GPU NVIDIA = ASUS/MSI/Gigabyte RTX/GTX — match by "RTX" or "GTX" keywords
+      const filterByBrand = (products, brand, category = "") => {
+        if (!brand) return products;
+        let keywords = [brand.toLowerCase()];
+        if (category === "gpu") {
+          if (brand === "AMD")    keywords = ["rx ", "radeon", " rx"];
+          if (brand === "NVIDIA") keywords = ["rtx", "gtx"];
+        }
+        const filtered = products.filter(
+          (p) => p.product_name && keywords.some(kw => p.product_name.toLowerCase().includes(kw))
+        );
+        return filtered.length > 0 ? filtered : products;
+      };
+
+      const cpus = filterByBrand(allCpus, cpuBrand, "cpu");
+      const gpus = filterByBrand(allGpus, gpuBrand, "gpu");
 
       // Select best components within budget
       const selectedBuild = {
@@ -304,9 +325,34 @@ class AutoBuildService {
         build: selectedBuild,
       };
     } catch (error) {
+      const msg = error.message || "";
+      const budgetErrors = [
+        "No CPU found",
+        "No compatible Mainboard",
+        "No compatible RAM",
+        "No Storage found",
+        "No compatible Cooler",
+        "No suitable PSU",
+        "No suitable Case",
+      ];
+      const isBudgetError = budgetErrors.some((e) => msg.includes(e));
+
+      if (isBudgetError) {
+        const formatted = budget.toLocaleString("vi-VN");
+        return {
+          success: false,
+          error: msg,
+          message:
+            `Rất tiếc, ngân sách ${formatted}đ chưa đủ để hoàn thiện cấu hình PC. ` +
+            `Bạn hãy cân nhắc thêm ngân sách một chút nhé! 💡 ` +
+            `Gợi ý: thử bắt đầu từ 15–20 triệu cho build cơ bản.`,
+          budget_too_low: true,
+        };
+      }
+
       return {
         success: false,
-        error: error.message,
+        error: msg,
       };
     }
   }
@@ -374,24 +420,34 @@ class AutoBuildService {
 
   /**
    * Select compatible Mainboard (same socket as CPU)
+   * Falls back to cheapest compatible mainboard if nothing fits within budget
    */
   static async selectCompatibleMainboard(mainboards, cpu, budget) {
-    const compatible = mainboards.filter(
-      (m) => m.price <= budget && m.specs.socket === cpu.specs.socket
-    );
-    if (compatible.length === 0) return null;
-    // Sort by price (best value)
-    compatible.sort((a, b) => a.price - b.price);
-    return compatible[0];
+    const sameSocket = mainboards.filter((m) => m.specs.socket === cpu.specs.socket);
+    const withinBudget = sameSocket.filter((m) => m.price <= budget);
+    if (withinBudget.length > 0) {
+      withinBudget.sort((a, b) => a.price - b.price);
+      return withinBudget[0];
+    }
+    // Fallback: cheapest compatible mainboard regardless of budget
+    if (sameSocket.length > 0) {
+      sameSocket.sort((a, b) => a.price - b.price);
+      return sameSocket[0];
+    }
+    return null;
   }
 
   /**
    * Select compatible RAM (same type as Mainboard)
+   * Falls back to cheapest compatible RAM if nothing fits within budget
    */
   static async selectCompatibleRAM(rams, mainboard, budget) {
-    const compatible = rams.filter(
-      (r) => r.price <= budget && r.specs.type === mainboard.specs.ram_type
-    );
+    const sameType = rams.filter((r) => r.specs.type === mainboard.specs.ram_type);
+    const compatible = sameType.filter((r) => r.price <= budget);
+    if (compatible.length === 0 && sameType.length > 0) {
+      sameType.sort((a, b) => a.price - b.price);
+      return sameType[0];
+    }
     if (compatible.length === 0) return null;
     // Sort by capacity then speed
     compatible.sort(
